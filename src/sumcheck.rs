@@ -1,3 +1,9 @@
+// These structs are taken from ARKWORKS
+// They are intended to help defining a GKRROUND.
+// THe purpose is for this to help align my interface with the implementation of ARKWORKS
+// This is done to enhance benchmarking between different implementation of sum-check.
+
+
 use std::marker::PhantomData;
 use ark_ff::Field;
 use ark_poly::{
@@ -16,12 +22,6 @@ pub struct ProverMsg<F: Field> {
     pub(crate) evaluations: Vec<F>,
 }
 
-// These structs are taken from ARKWORKS
-// They are intended to help defining a GKRROUND.
-// THe purpose is for this to help align my interface with the implementation of ARKWORKS
-// This is done to enhance benchmarking between different implementation of sum-check.
-
-
 /// Sumcheck Argument for GKR Round function
 pub struct GKRRoundSumcheck<F: Field> {
     _marker: PhantomData<F>,
@@ -39,12 +39,36 @@ impl<F: Field> GKRProof<F> {
     }
 }
 
-pub trait SumCheckProof<F: ark_ff::Field> {
+pub trait SumcheckProver<F: ark_ff::Field> {
     fn compute_sum(
         f1: &SparseMultilinearExtension<F>,
         f2: &DenseMultilinearExtension<F>,
         f3: &DenseMultilinearExtension<F>,
     );
+}
+
+struct NaiveSumCheck {
+}
+
+impl NaiveSumCheck {
+    pub fn _new() -> NaiveSumCheck {
+        return NaiveSumCheck {  };
+    }
+}
+
+impl<F: ark_ff::Field> SumcheckProver<F> for NaiveSumCheck {
+    fn compute_sum(
+            mult: &SparseMultilinearExtension<F>,
+            vi: &DenseMultilinearExtension<F>,
+            vj: &DenseMultilinearExtension<F>,
+        ) {
+        
+        // This iterator will iterate over all the {0,1}^3n inputs to the function. 
+        let _iterp = mult.to_dense_multilinear_extension().iter();
+        
+        let _iteri = vi.iter();
+        let _iterj = vj.iter();
+    }
 }
 
 /// Subclaim for GKR Round Function
@@ -74,6 +98,7 @@ impl<F: ark_ff::Field> GKRRoundSumcheck<F> {
         assert_eq!(f1.num_vars, 3 * f2.num_vars);
         assert_eq!(f1.num_vars, 3 * f3.num_vars);
     
+        
         todo!()
     }
 
