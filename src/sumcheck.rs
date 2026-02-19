@@ -11,6 +11,7 @@ use ark_poly::{
 };
 use ark_std::rand::RngCore;
 use ark_test_curves::ark_ff;
+use crate::data_structures::GKRRoundSumcheckSubClaim;
 use crate::rng::FeedableRNG;
 use crate::errors::Error;
 
@@ -60,21 +61,11 @@ pub trait SumcheckProver<F: ark_ff::Field> {
         f2: &DenseMultilinearExtension<F>,
         f3: &DenseMultilinearExtension<F>,
         r: &[F],
-    );
-}
-
-/// Subclaim for GKR Round Function
-pub struct GKRRoundSumcheckSubClaim<F: Field> {
-    /// u
-    pub u: Vec<F>,
-    /// v
-    pub v: Vec<F>,
-    /// expected evaluation at f(g,u,v)
-    pub expected_evaluation: F,
+    ) -> F;
 }
 
 // The interface is taken from ARKWORKS, however i have added comments and "rewritten it" such that it is my solution.
-impl<F: ark_ff::Field> GKRRoundSumcheck<F> {
+impl<F: Field> GKRRoundSumcheck<F> {
     /// Takes a GKR Round Function and input, prove the sum.
     /// * `f1`,`f2`,`f3`: represents the GKR round function
     /// * `g`: represents the fixed input.
