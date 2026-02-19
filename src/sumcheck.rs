@@ -7,9 +7,9 @@
 use std::marker::PhantomData;
 use ark_ff::Field;
 use ark_poly::{
-    SparseMultilinearExtension,
-    DenseMultilinearExtension,
+    DenseMultilinearExtension, MultilinearExtension, SparseMultilinearExtension
 };
+use ark_std::rand::RngCore;
 use ark_test_curves::ark_ff;
 use crate::rng::FeedableRNG;
 use crate::errors::Error;
@@ -39,36 +39,28 @@ impl<F: Field> GKRProof<F> {
     }
 }
 
+pub fn random_gkr_instance<F: Field, R: RngCore>(
+    dim: usize,
+    rng: &mut R,
+) -> (
+    SparseMultilinearExtension<F>,
+    DenseMultilinearExtension<F>,
+    DenseMultilinearExtension<F>,
+) {
+    (
+        SparseMultilinearExtension::rand_with_config(dim * 3, 1 << dim, rng),
+        DenseMultilinearExtension::rand(dim, rng),
+        DenseMultilinearExtension::rand(dim, rng),
+    )
+}
+
 pub trait SumcheckProver<F: ark_ff::Field> {
     fn compute_sum(
         f1: &SparseMultilinearExtension<F>,
         f2: &DenseMultilinearExtension<F>,
         f3: &DenseMultilinearExtension<F>,
+        r: &[F],
     );
-}
-
-struct NaiveSumCheck {
-}
-
-impl NaiveSumCheck {
-    pub fn _new() -> NaiveSumCheck {
-        return NaiveSumCheck {  };
-    }
-}
-
-impl<F: ark_ff::Field> SumcheckProver<F> for NaiveSumCheck {
-    fn compute_sum(
-            mult: &SparseMultilinearExtension<F>,
-            vi: &DenseMultilinearExtension<F>,
-            vj: &DenseMultilinearExtension<F>,
-        ) {
-        
-        // This iterator will iterate over all the {0,1}^3n inputs to the function. 
-        let _iterp = mult.to_dense_multilinear_extension().iter();
-        
-        let _iteri = vi.iter();
-        let _iterj = vj.iter();
-    }
 }
 
 /// Subclaim for GKR Round Function
