@@ -1,57 +1,46 @@
-//! Data structures used by GKR Round Sumcheck
-
-use crate::sumcheck::ProverMsg;
+/*
+This file will contain structures relevant to setting up the proof system.
+*/
 use ark_ff::Field;
-use ark_poly::{DenseMultilinearExtension, Polynomial, SparseMultilinearExtension};
-use ark_std::vec::Vec;
+use ark_poly::{DenseMultilinearExtension, SparseMultilinearExtension};
 
-/// Proof for GKR Round Function
-pub struct GKRProof<F: Field> {
-    pub(crate) phase1_sumcheck_msgs: Vec<ProverMsg<F>>,
-    pub(crate) phase2_sumcheck_msgs: Vec<ProverMsg<F>>,
+pub trait Prover<F: Field> {
+    // Computes the sum so we can have an alleged claim of the functions.
+    fn compute_sum(&self) -> F;
+
+    // Creates a function that has one variable (meaning it fixes all other variables)
+    fn get_verifier_function(&self) -> DenseMultilinearExtension<F>;
+
+    fn fix_variable(&mut self, random_field_element: F);
+
 }
 
-impl<F: Field> GKRProof<F> {
-    /// Extract the witness (i.e. the sum of GKR)
-    pub fn extract_sum(&self) -> F {
-        self.phase1_sumcheck_msgs[0].evaluations[0] + self.phase1_sumcheck_msgs[0].evaluations[1]
-    }
+pub trait Verifier<F: Field> {
+    // Has to check the degree of the function to ensure no one cheats.
+    fn verify_degree(fx: DenseMultilinearExtension<F>);
+
+    // Returns a random field element from the verifier
+    fn get_random_field_element() -> F;
+
+    // Takes as input a multilinear extension and checks that for each field their sum is the claim.
+    fn check_claimed_value(gx: DenseMultilinearExtension<F>);
 }
 
-/// Subclaim for GKR Round Function
-pub struct GKRRoundSumcheckSubClaim<F: Field> {
-    /// u
-    pub u: Vec<F>,
-    /// v
-    pub v: Vec<F>,
-    /// expected evaluation at f(g,u,v)
-    pub expected_evaluation: F,
-}
+pub trait GKRRoundProver<F: Field> {
+    /*
+    mult: SparseMultilinearExtension<F>, // mle of mult for round k with (r, i , j)
+    vi: DenseMultilinearExtension<F>, // mle of v_(k-1)(i)
+    vj: DenseMultilinearExtension<F>, // mle of v_(k-1)(i)
+    r: [F], // The gate "r" that is fixed.
+    */
+    fn set_mult(func: SparseMultilinearExtension<F>);
+    fn get_mult() -> SparseMultilinearExtension<F>;
+    fn set_vi(func: DenseMultilinearExtension<F>);
+    fn get_vi() -> DenseMultilinearExtension<F>;
+    fn set_vj(func: DenseMultilinearExtension<F>);
+    fn get_vj() -> DenseMultilinearExtension<F>;
 
-impl<F: Field> GKRRoundSumcheckSubClaim<F> {
-    /// Verify that the subclaim is true by evaluating the GKR Round function.
-    pub fn verify_subclaim(
-        &self,
-        f1: &SparseMultilinearExtension<F>,
-        f2: &DenseMultilinearExtension<F>,
-        f3: &DenseMultilinearExtension<F>,
-        g: &[F],
-    ) -> bool {
-        let dim = self.u.len();
-        assert_eq!(self.v.len(), dim);
-        assert_eq!(f1.num_vars, 3 * dim);
-        assert_eq!(f2.num_vars, dim);
-        assert_eq!(f3.num_vars, dim);
-        assert_eq!(g.len(), dim);
+    fn set_gate(gate: [F]);
+    fn get_gate() -> [F];
 
-        let guv: Vec<_> = g
-            .iter()
-            .chain(self.u.iter())
-            .chain(self.v.iter())
-            .copied()
-            .collect();
-        let actual_evaluation = f1.evaluate(&guv) * f2.evaluate(&self.u) * f3.evaluate(&self.v);
-
-        actual_evaluation == self.expected_evaluation
-    }
 }
