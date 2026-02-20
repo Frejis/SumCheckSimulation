@@ -76,32 +76,21 @@ impl<F: ark_ff::Field> SumcheckProver<F> for NaiveSumCheck {
 }
 
 mod tests {
-    #[test]
-    fn test_ark_naive() {
-        super::test_my_naive::<ark_bls12_381::Fr>(9);
-
-    }
 
 #[test]
-    fn test_my_naive() {
-        super::test_my_naive::<ark_bls12_381::Fr>(9);
+    fn test_my_naive_equals_arkworks() {
+        super::test_my_naive_equal_ark_naive::<ark_bls12_381::Fr>(9);
     }
 }
 
-fn test_my_naive<F: ark_ff::Field>(nv: usize) {
+fn test_my_naive_equal_ark_naive<F: ark_ff::Field>(nv: usize) {
     let mut rng = test_rng();
     let (f1, f2, f3) = random_gkr_instance(nv, &mut rng);
     let g: Vec<_> = (0..nv).map(|_| F::rand(&mut rng)).collect();
     
-    let claimed_sum = NaiveSumCheck::compute_sum(&f1, &f2, &f3, &g);
-    
-    let mut rng = Blake2b512Rng::setup();
-    let proof = GKRRoundSumcheck::prove(&mut rng, &f1, &f2, &f3, &g);
-    rng = Blake2b512Rng::setup();
-    let subclaim = GKRRoundSumcheck::verify(&mut rng, f2.num_vars, &proof, claimed_sum)
-        .expect("verification failed");
-    let result = subclaim.verify_subclaim(&f1, &f2, &f3, &g);
-    assert!(result)
+    let my_claimed_sum: F = NaiveSumCheck::compute_sum(&f1, &f2, &f3, &g);
+    let ark_claimed_sum: F = ark_sumcheck::calculate_sum_naive(&f1, &f2, &f3, &g);
+    assert_eq!(my_claimed_sum, ark_claimed_sum);
 }
 
 fn test_naive<F: ark_ff::Field>(nv: usize) {

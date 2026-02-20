@@ -80,7 +80,8 @@ impl<F: Field> GKRRoundSumcheck<F> {
         // Hence the amount of variables will be 3 * variables in V_(k-1)(i) and V_(k-1)(j).
         assert_eq!(f1.num_vars, 3 * f2.num_vars);
         assert_eq!(f1.num_vars, 3 * f3.num_vars);
-    
+
+        
         
         todo!()
     }
