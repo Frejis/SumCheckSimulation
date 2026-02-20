@@ -27,6 +27,16 @@ impl<F: Field> NaiveProver<F> {
             r,
         }
     }
+
+    /// Takes the variables needed to evalute the product of the GKR function.
+    ///
+    fn eval_g(&self, p0: &Vec<F>) -> F {
+        assert_eq!(p0.len(), self.vi.num_vars + self.vj.num_vars);
+        /*
+        A bit blank of ideas.
+        */
+        todo!()
+    }
 }
 
 impl<F: Field> Prover<F> for NaiveProver<F> {
@@ -82,11 +92,11 @@ impl<F: Field> Prover<F> for NaiveProver<F> {
             // Set the first variable to 0.
             field_index[0] = F::zero();
             // Now evaluate the function and add it to s0.
-            let v1 = eval_g(&field_index);
+            let v1 = self.eval_g(&field_index);
             s0 += &v1;
 
             field_index[0] = F::one();
-            let v2 = eval_g(&field_index);
+            let v2 = self.eval_g(&field_index);
             s1 += &v2;
         }
 
@@ -107,10 +117,6 @@ impl<F: Field> Prover<F> for NaiveProver<F> {
             self.vj.fix_variables(field_packed);
         }
     }
-}
-
-fn eval_g<F: Field>(p0: &Vec<F>) -> F {
-    todo!()
 }
 
 mod tests {
