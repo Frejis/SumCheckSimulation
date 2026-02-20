@@ -14,28 +14,18 @@ impl NaiveSumCheck {
         return NaiveSumCheck {  };
     }
 
-    fn index_to_field_element<F: Field>(mut index: usize, mut nv: usize) -> Vec<F> {
-        let mut ans = Vec::with_capacity(nv);
-        while nv != 0 {
-            ans.push(((index & 1) as u64).into());
-            index >>= 1;
-            nv -= 1;
-        }
-        ans
-    }
-
-/*
-    pub fn convert_index_to_field<F: ark_ff::Field>(index: usize, field_size: usize) -> Vec<F> {
-        let mut nv: Vec<F> = Vec::with_capacity(field_size);
+    // Converts an {0,1}^s for field size $s$ into a field element where each bit becomes a field.
+    pub fn convert_index_to_field<F: ark_ff::Field>(index: usize, mut field_size: usize) -> Vec<F> {
+        let mut result: Vec<F> = Vec::with_capacity(field_size);
         let mut tmp = index.clone();
-        while index != 0 {
-            let bit_value = (index & 1) as u64;
-            nv.push(bit_value.into());
+        while field_size != 0 {
+            let bit_value = (tmp & 1) as u64;
+            result.push(bit_value.into());
             tmp = tmp >> 1;
+            field_size -= 1;
         }
-        todo!()
+        result
     }
-*/
 }
 
 impl<F: ark_ff::Field> SumcheckProver<F> for NaiveSumCheck {
@@ -63,7 +53,7 @@ impl<F: ark_ff::Field> SumcheckProver<F> for NaiveSumCheck {
             // We have to "bind" the next set of bits to the prefix in the mult.
             // First however we must convert "i" to a field so we can properly fix the "variables".
             //let field_index = &NaiveSumCheck::convert_index_to_field(i, vj.num_vars);
-            let field_index = &NaiveSumCheck::index_to_field_element(i, vj.num_vars);
+            let field_index = &NaiveSumCheck::convert_index_to_field(i, vj.num_vars);
             let mult_pref = mult_gate.fix_variables(field_index);
 
             for j in 0..total_bits {
