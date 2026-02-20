@@ -1,10 +1,7 @@
-use std::ops::AddAssign;
-
-use ark_ff::{Field, UniformRand, Zero};
-use ark_poly::{DenseMultilinearExtension, MultilinearExtension, Polynomial, SparseMultilinearExtension};
-use ark_std::{rand::{Rng, RngCore}, test_rng};
-use crate::{ark_sumcheck, rng::{Blake2b512Rng, FeedableRNG}, sumcheck::{GKRRoundSumcheck, SumcheckProver, random_gkr_instance}};
-use ark_bls12_381::Fr;
+use crate::{ark_sumcheck, rng::{Blake2b512Rng, FeedableRNG}, sumcheck::{random_gkr_instance, GKRRoundSumcheck, SumcheckProver}};
+use ark_ff::{Field};
+use ark_poly::{DenseMultilinearExtension, MultilinearExtension, SparseMultilinearExtension};
+use ark_std::test_rng;
 
 pub struct NaiveSumCheck {
 }
@@ -15,7 +12,7 @@ impl NaiveSumCheck {
     }
 
     // Converts an {0,1}^s for field size $s$ into a field element where each bit becomes a field.
-    pub fn convert_index_to_field<F: ark_ff::Field>(index: usize, mut field_size: usize) -> Vec<F> {
+    pub fn convert_index_to_field<F: Field>(index: usize, mut field_size: usize) -> Vec<F> {
         let mut result: Vec<F> = Vec::with_capacity(field_size);
         let mut tmp = index.clone();
         while field_size != 0 {
@@ -28,7 +25,7 @@ impl NaiveSumCheck {
     }
 }
 
-impl<F: ark_ff::Field> SumcheckProver<F> for NaiveSumCheck {
+impl<F: Field> SumcheckProver<F> for NaiveSumCheck {
 
     fn compute_sum(
             mult: &SparseMultilinearExtension<F>,
@@ -73,7 +70,7 @@ mod tests {
     }
 }
 
-fn test_my_naive_equal_ark_naive<F: ark_ff::Field>(nv: usize) {
+fn test_my_naive_equal_ark_naive<F: Field>(nv: usize) {
     let mut rng = test_rng();
     let (f1, f2, f3) = random_gkr_instance(nv, &mut rng);
     let g: Vec<_> = (0..nv).map(|_| F::rand(&mut rng)).collect();
@@ -83,7 +80,7 @@ fn test_my_naive_equal_ark_naive<F: ark_ff::Field>(nv: usize) {
     assert_eq!(my_claimed_sum, ark_claimed_sum);
 }
 
-fn test_naive<F: ark_ff::Field>(nv: usize) {
+fn test_naive<F: Field>(nv: usize) {
     let mut rng = test_rng();
     let (f1, f2, f3) = random_gkr_instance(nv, &mut rng);
     let g: Vec<_> = (0..nv).map(|_| F::rand(&mut rng)).collect();
