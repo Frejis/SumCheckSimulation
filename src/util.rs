@@ -1,4 +1,5 @@
-use ark_ff::Field;
+use ark_bls12_381::Fr;
+use ark_ff::{Field, One};
 use ark_poly::{DenseMultilinearExtension, MultilinearExtension, SparseMultilinearExtension};
 use ark_std::rand::RngCore;
 use ark_std::test_rng;
@@ -42,5 +43,9 @@ pub fn random_gate<F: Field>(label_length: usize) -> Vec<F> {
     }
     res
     */
-    vec![F::zero(); label_length].to_vec()
+    let mut res = Vec::with_capacity(label_length);
+    for i in 0..label_length {
+        res.push(F::rand(&mut rng));
+    }
+    res
 }

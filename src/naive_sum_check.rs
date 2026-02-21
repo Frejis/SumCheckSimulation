@@ -1,5 +1,7 @@
+use std::arch::x86_64::_mm_aeskeygenassist_si128;
 use ark_ff::{Field, Zero};
 use ark_poly::{DenseMultilinearExtension, MultilinearExtension, Polynomial, SparseMultilinearExtension};
+use ark_std::iterable::Iterable;
 use crate::data_structures::Prover;
 use crate::util::index_to_field_element;
 
@@ -20,17 +22,24 @@ impl<F: Field> NaiveProver<F> {
         assert_eq!(mult.num_vars, vi.num_vars * 3);
         assert_eq!(mult.num_vars, vj.num_vars * 3);
         NaiveProver {
-            mult: mult.fix_variables(&*r),
+            mult,
             vi,
             vj,
             r,
         }
     }
 
+    fn get_mult_fixed(&self) -> SparseMultilinearExtension<F> {
+        assert!(self.r.len() < self.mult.num_vars);
+        self.mult.clone().fix_variables(&*self.r)
+    }
+
     /// Takes the variables needed to evalute the product of the GKR function.
     ///
     fn eval_g(&self, point: &Vec<F>) -> F {
         assert_eq!(point.len(), self.vi.num_vars + self.vj.num_vars);
+        //println!("mult vars: {}");
+        assert_eq!(self.get_mult_fixed().num_vars, self.vi.num_vars + self.vj.num_vars);
         /*
         A bit blank of ideas.
         */
@@ -44,43 +53,40 @@ impl<F: Field> NaiveProver<F> {
 
         let vi_val = self.vi.evaluate(u);
         let vj_val = self.vj.evaluate(v);
-        let mult_val = self.mult.evaluate(point);
+        let mult_val = self.get_mult_fixed().evaluate(point);
 
         vi_val * vj_val * mult_val
+    }
+
+    fn calculate_sum_naive(
+        &self,
+        f1: &SparseMultilinearExtension<F>,
+        f2: &DenseMultilinearExtension<F>,
+        f3: &DenseMultilinearExtension<F>,
+        g: &[F],
+    ) -> F {
+        let dim = f2.num_vars;
+        assert_eq!(f1.num_vars, 3 * dim);
+        assert_eq!(f3.num_vars, dim);
+        let f1_g = f1.fix_variables(g);
+        let mut sum_xy = F::zero();
+        for x in 0..(1 << dim) {
+            let f2_x = f2[x];
+            let f1_gx = f1_g
+                .fix_variables(&index_to_field_element(x, dim))
+                .to_dense_multilinear_extension();
+            for y in 0..(1 << dim) {
+                sum_xy += f1_gx[y] * f2_x * f3[y];
+            }
+        }
+        sum_xy
     }
 }
 
 impl<F: Field> Prover<F> for NaiveProver<F> {
     // Needs to be refactored just my last sumcheck which i know works.
     fn compute_sum(&self) -> F {
-        let mult = &self.mult;
-        let vi = &self.vi;
-        let vj = &self.vj;
-        let r = &self.r;
-        // num_vars is the same as the amount of bits needed to describe a gate.
-        let mut sum= F::zero();
-        let total_bits= 1 << vj.num_vars; // Denotes the maximum bit value
-
-        // This fixes the gate label to the mult.
-        let mult_gate = mult.fix_variables(&*r);
-
-        // Can not use iterator as it iterates over the evaluations for inputs {0,1}^s.
-        // Our for loop thus becomes for each i in {0,1}^s
-        for i in 0..total_bits {
-            let prefix_eval = vi[i];
-
-            // We have to "bind" the next set of bits to the prefix in the mult.
-            // First however we must convert "i" to a field so we can properly fix the "variables".
-            //let field_index = &NaiveSumCheck::convert_index_to_field(i, vj.num_vars);
-            let field_index = index_to_field_element(i, vj.num_vars);
-            let mult_pref = mult_gate.fix_variables(&*field_index);
-
-            for j in 0..total_bits {
-                let suffix_eval = vj[j];
-                sum += mult_pref[j] * prefix_eval * suffix_eval;
-            }
-        }
-        sum
+        self.calculate_sum_naive(&self.mult, &self.vi, &self.vj, &self.r)
     }
 
     fn get_verifier_function(&self) -> DenseMultilinearExtension<F> {
@@ -90,25 +96,22 @@ impl<F: Field> Prover<F> for NaiveProver<F> {
         After that take the first variable and set it to 0 and the other one 1.
         */
         // Assume that the gate has been fixed.
+        assert_eq!(self.mult.num_vars, self.vi.num_vars * 3);
         let n = self.vi.num_vars + self.vj.num_vars;
-        assert_eq!(self.mult.num_vars, self.vi.num_vars + self.vj.num_vars);
-        let remaining_variables = n - 1;
-        let total = 1usize.checked_shl(remaining_variables as u32).expect("too many vars");
+
+        let total = 1 << n;
         let mut s0 = F::zero();
         let mut s1 = F::zero();
 
         for mask in 0..total {
-            let mut field_index: Vec<F> = index_to_field_element(mask, n);
+            let field_index: Vec<F> = index_to_field_element(mask, n);
 
-            // Set the first variable to 0.
-            field_index[0] = F::zero();
-            // Now evaluate the function and add it to s0.
-            let v1 = self.eval_g(&field_index);
-            s0 += &v1;
-
-            field_index[0] = F::one();
-            let v2 = self.eval_g(&field_index);
-            s1 += &v2;
+            let value = self.eval_g(&field_index);
+            if (field_index[0].is_zero()) {
+                s0 += &value;
+            } else if (field_index[0].is_one()) {
+                s1 += &value;
+            }
         }
 
         DenseMultilinearExtension::from_evaluations_vec(1, vec![s0, s1])
@@ -133,7 +136,7 @@ impl<F: Field> Prover<F> for NaiveProver<F> {
 mod tests {
     use ark_bls12_381::Fr;
     use ark_ff::{One, Zero};
-    use ark_std::test_rng;
+    use ark_std::{test_rng, UniformRand};
     use crate::data_structures::Prover;
     use crate::naive_sum_check::NaiveProver;
     use crate::util;
@@ -153,21 +156,30 @@ mod tests {
     }
 
     #[test]
-    fn test_get_verifier_function() {
-        // The first 5 variables are the gate, hence we also need 5 to fix the gate label.
-        let variables = 5;
-        let fixed_gate = [Fr::one(); 5];
+    fn test_naive_sum_check() {
 
+    }
+
+    #[test]
+    fn test_get_verifier_function() {
         let mut rng = test_rng();
+
+        // The first 5 variables are the gate, hence we also need 5 to fix the gate label.
+        let variables = 7;
+        let fixed_gate = util::random_gate(7);
         let (mult, vi, vj) = util::random_gkr_instance(variables, &mut rng);
         let prover: NaiveProver<Fr> = NaiveProver::new(mult, vi, vj, Vec::from(fixed_gate));
         // Now we test the g_func gives what we expect
-        let g_eval = prover.get_verifier_function();
-
+        let verifier_func = prover.get_verifier_function();
+        println!("{:?}", prover.mult.num_vars);
+        println!("{:?}", prover.vi.num_vars);
+        println!("{:?}", prover.vj.num_vars);
         // now we evaluate this function at Fr::zero() and Fr::one() and it has to be equal to the sum it claims.
         // Just as the verifier would do.
-        let verifier_sum = g_eval.evaluations[0] + g_eval.evaluations[1];
+        let verifier_sum = verifier_func.evaluations[0] + verifier_func.evaluations[1];
         let claimed_sum = prover.compute_sum();
+        println!("{:?}", claimed_sum);
+        println!("{:?}", verifier_sum);
         assert_eq!(claimed_sum, verifier_sum);
     }
 }

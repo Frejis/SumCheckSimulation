@@ -34,7 +34,10 @@ impl<F: Field> Verifier<F> for StandardVerifier<F> {
     }
 
     fn check_claimed_value(&self, gx: &DenseMultilinearExtension<F>) -> bool {
-        gx.evaluations[0] + gx.evaluations[1] == self.claimed_value
+        let checked_claim = gx.evaluations[0] + gx.evaluations[1];
+        let res = checked_claim == self.claimed_value;
+        println!("Claimed value {res} is correct.");
+        res
     }
 
     fn handle_round(&mut self, fx: &DenseMultilinearExtension<F>) -> F {
