@@ -1,5 +1,5 @@
 use ark_ff::{Field, Zero};
-use ark_poly::{DenseMultilinearExtension, MultilinearExtension, SparseMultilinearExtension};
+use ark_poly::{DenseMultilinearExtension, MultilinearExtension, Polynomial, SparseMultilinearExtension};
 use rand::random;
 use crate::data_structures::Prover;
 use crate::util::index_to_field_element;
@@ -21,7 +21,7 @@ impl<F: Field> NaiveProver<F> {
         assert_eq!(mult.num_vars, vi.num_vars * 3);
         assert_eq!(mult.num_vars, vj.num_vars * 3);
         NaiveProver {
-            mult,
+            mult: mult.fix_variables(&*r),
             vi,
             vj,
             r,
@@ -30,12 +30,24 @@ impl<F: Field> NaiveProver<F> {
 
     /// Takes the variables needed to evalute the product of the GKR function.
     ///
-    fn eval_g(&self, p0: &Vec<F>) -> F {
-        assert_eq!(p0.len(), self.vi.num_vars + self.vj.num_vars);
+    fn eval_g(&self, point: &Vec<F>) -> F {
+        assert_eq!(point.len(), self.vi.num_vars + self.vj.num_vars);
         /*
         A bit blank of ideas.
         */
-        todo!()
+        let u_len = self.vi.num_vars();
+        let v_len = self.vj.num_vars();
+
+        assert_eq!(point.len(), u_len + v_len);
+
+        let u = &point[..u_len].to_vec();
+        let v = &point[u_len..u_len + v_len].to_vec();
+
+        let vi_val = self.vi.evaluate(u);
+        let vj_val = self.vj.evaluate(v);
+        let mult_val = self.mult.evaluate(point);
+
+        vi_val * vj_val * mult_val
     }
 }
 
@@ -120,7 +132,14 @@ impl<F: Field> Prover<F> for NaiveProver<F> {
 }
 
 mod tests {
+    use ark_bls12_381::Fr;
     use ark_ff::{One, Zero};
+    use ark_poly::Polynomial;
+    use ark_std::test_rng;
+    use rand::{random, RngCore};
+    use crate::data_structures::Prover;
+    use crate::naive_sum_check::NaiveProver;
+    use crate::util;
     use crate::util::index_to_field_element;
 
     #[test]
@@ -134,5 +153,24 @@ mod tests {
             }
             assert_eq!(field_index, points)
         }
+    }
+
+    #[test]
+    fn test_get_verifier_function() {
+        // The first 5 variables are the gate, hence we also need 5 to fix the gate label.
+        let variables = 5;
+        let fixed_gate = [Fr::one(); 5];
+
+        let mut rng = test_rng();
+        let (mult, vi, vj) = util::random_gkr_instance(variables, &mut rng);
+        let prover: NaiveProver<Fr> = NaiveProver::new(mult, vi, vj, Vec::from(fixed_gate));
+        // Now we test the g_func gives what we expect
+        let g_eval = prover.get_verifier_function();
+
+        // now we evaluate this function at Fr::zero() and Fr::one() and it has to be equal to the sum it claims.
+        // Just as the verifier would do.
+        let verifier_sum = g_eval.evaluations[0] + g_eval.evaluations[1];
+        let claimed_sum = prover.compute_sum();
+        assert_eq!(claimed_sum, verifier_sum);
     }
 }
