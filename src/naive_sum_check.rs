@@ -1,10 +1,9 @@
 use ark_ff::{Field, Zero};
 use ark_poly::{DenseMultilinearExtension, MultilinearExtension, Polynomial, SparseMultilinearExtension};
-use rand::random;
 use crate::data_structures::Prover;
 use crate::util::index_to_field_element;
 
-struct NaiveProver<F: Field> {
+pub struct NaiveProver<F: Field> {
     mult: SparseMultilinearExtension<F>, // mle of mult for round k with (r, i , j)
     vi: DenseMultilinearExtension<F>, // mle of v_(k-1)(i)
     vj: DenseMultilinearExtension<F>, // mle of v_(k-1)(i)
@@ -134,9 +133,7 @@ impl<F: Field> Prover<F> for NaiveProver<F> {
 mod tests {
     use ark_bls12_381::Fr;
     use ark_ff::{One, Zero};
-    use ark_poly::Polynomial;
     use ark_std::test_rng;
-    use rand::{random, RngCore};
     use crate::data_structures::Prover;
     use crate::naive_sum_check::NaiveProver;
     use crate::util;

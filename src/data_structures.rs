@@ -17,13 +17,19 @@ pub trait Prover<F: Field> {
 
 pub trait Verifier<F: Field> {
     // Has to check the degree of the function to ensure no one cheats.
-    fn verify_degree(fx: DenseMultilinearExtension<F>);
+    fn verify_degree(&self, fx: &DenseMultilinearExtension<F>) -> bool;
 
     // Returns a random field element from the verifier
-    fn get_random_field_element() -> F;
+    fn get_random_field_element(&mut self) -> F;
 
     // Takes as input a multilinear extension and checks that for each field their sum is the claim.
-    fn check_claimed_value(gx: DenseMultilinearExtension<F>);
+    fn check_claimed_value(&self, fx: &DenseMultilinearExtension<F>) -> bool;
+    
+    /// Should ideally take a function by the prover and do all necessary checks
+    /// If any fails then it panics, and if everything is good then it returns a random field element.
+    fn handle_round(&mut self, fx: &DenseMultilinearExtension<F>) -> F;
+    
+    fn set_claim(&mut self, claim: F);
 }
 
 pub trait GKRRoundProver<F: Field> {
