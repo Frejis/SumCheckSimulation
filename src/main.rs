@@ -33,7 +33,7 @@ fn main() {
 mod generic_tests {
     use ark_bls12_381::Fr;
     use ark_ff::One;
-    use ark_std::test_rng;
+    use ark_std::{test_rng, UniformRand};
     use crate::data_structures::{Prover, Verifier};
     use crate::naive_sum_check::NaiveProver;
     use crate::standard_verifier::StandardVerifier;

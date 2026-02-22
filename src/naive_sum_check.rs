@@ -1,5 +1,5 @@
 use std::arch::x86_64::_mm_aeskeygenassist_si128;
-use ark_ff::{Field, Zero};
+use ark_ff::{Field, SqrtPrecomputation, Zero};
 use ark_poly::{DenseMultilinearExtension, MultilinearExtension, Polynomial, SparseMultilinearExtension};
 use ark_std::iterable::Iterable;
 use crate::data_structures::Prover;
@@ -7,8 +7,9 @@ use crate::util::index_to_field_element;
 
 pub struct NaiveProver<F: Field> {
     mult: SparseMultilinearExtension<F>, // mle of mult for round k with (r, i , j)
-    vi: DenseMultilinearExtension<F>, // mle of v_(k-1)(i)
-    vj: DenseMultilinearExtension<F>, // mle of v_(k-1)(i)
+    fixed_mult: SparseMultilinearExtension<F>, // This has the gate r fixed.
+    pub(crate) vi: DenseMultilinearExtension<F>, // mle of v_(k-1)(i)
+    pub(crate) vj: DenseMultilinearExtension<F>, // mle of v_(k-1)(i)
     r: Vec<F>, // The gate "r" that is fixed.
 }
 
@@ -22,6 +23,7 @@ impl<F: Field> NaiveProver<F> {
         assert_eq!(mult.num_vars, vi.num_vars * 3);
         assert_eq!(mult.num_vars, vj.num_vars * 3);
         NaiveProver {
+            fixed_mult: mult.clone().fix_variables(&*r),
             mult,
             vi,
             vj,
@@ -31,7 +33,7 @@ impl<F: Field> NaiveProver<F> {
 
     fn get_mult_fixed(&self) -> SparseMultilinearExtension<F> {
         assert!(self.r.len() < self.mult.num_vars);
-        self.mult.clone().fix_variables(&*self.r)
+        self.fixed_mult.clone()
     }
 
     /// Takes the variables needed to evalute the product of the GKR function.
@@ -122,11 +124,10 @@ impl<F: Field> Prover<F> for NaiveProver<F> {
         1. Fix the first variable in mult. Then fix in vi. Once vi has no more variables fix vj.
         */
         let field_packed = &[random_field_element];
-        self.mult.fix_variables(field_packed);
+        self.fixed_mult.fix_variables(field_packed);
 
-        let vi = &self.vi;
-        if (vi.num_vars > 0) {
-            vi.fix_variables(field_packed);
+        if (self.vi.num_vars > 0) {
+            self.vi = self.vi.fix_variables(field_packed);
         } else {
             self.vj.fix_variables(field_packed);
         }
@@ -140,7 +141,7 @@ mod tests {
     use crate::data_structures::Prover;
     use crate::naive_sum_check::NaiveProver;
     use crate::util;
-    use crate::util::index_to_field_element;
+    use crate::util::{index_to_field_element, random_gate};
 
     #[test]
     fn sanity_check() {
@@ -181,5 +182,20 @@ mod tests {
         println!("{:?}", claimed_sum);
         println!("{:?}", verifier_sum);
         assert_eq!(claimed_sum, verifier_sum);
+    }
+
+    #[test]
+    fn test_fixing_a_variable() {
+        let gate_length = 7;
+        let fixed_gate: Vec<Fr> = random_gate(gate_length);
+
+        let mut rng = test_rng();
+        let (mult, vi, vj) = util::random_gkr_instance(gate_length, &mut rng);
+        let mut prover = NaiveProver::new(mult, vi, vj, Vec::from(fixed_gate));
+
+        let r_field = Fr::rand(&mut rng);
+        prover.fix_variable(r_field);
+
+        assert_eq!(prover.vi.num_vars + prover.vj.num_vars, gate_length * 2 - 1);
     }
 }
