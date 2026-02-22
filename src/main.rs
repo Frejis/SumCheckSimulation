@@ -58,4 +58,28 @@ mod generic_tests {
 
         assert!(verifier.check_claimed_value(&verifier_func));
     }
+
+    #[test]
+    fn simulate_two_rounds_naive() {
+        let variables = 7;
+        let fixed_gate = random_gate(variables);
+
+        let mut rng = test_rng();
+        let (mult, vi, vj) = util::random_gkr_instance(variables, &mut rng);
+        let mut prover: NaiveProver<Fr> = NaiveProver::new(mult, vi, vj, Vec::from(fixed_gate));
+        // Now we test the g_func gives what we expect
+        let mut verifier = StandardVerifier::new(variables, prover.compute_sum());
+
+        let verifier_func = prover.get_verifier_function();
+
+        assert!(verifier.check_claimed_value(&verifier_func));
+        let rand_var = verifier.get_random_field_element();
+
+        prover.fix_variable(rand_var);
+
+        let new_claim = prover.compute_sum();
+        verifier.set_claim(new_claim);
+        let snd_verifier_func = prover.get_verifier_function();
+        assert!(verifier.check_claimed_value(&snd_verifier_func));
+    }
 }

@@ -40,7 +40,6 @@ impl<F: Field> NaiveProver<F> {
     ///
     fn eval_g(&self, point: &Vec<F>) -> F {
         assert_eq!(point.len(), self.vi.num_vars + self.vj.num_vars);
-        //println!("mult vars: {}");
         assert_eq!(self.get_mult_fixed().num_vars, self.vi.num_vars + self.vj.num_vars);
         /*
         A bit blank of ideas.
@@ -62,23 +61,18 @@ impl<F: Field> NaiveProver<F> {
 
     fn calculate_sum_naive(
         &self,
-        f1: &SparseMultilinearExtension<F>,
-        f2: &DenseMultilinearExtension<F>,
-        f3: &DenseMultilinearExtension<F>,
-        g: &[F],
     ) -> F {
-        let dim = f2.num_vars;
-        assert_eq!(f1.num_vars, 3 * dim);
-        assert_eq!(f3.num_vars, dim);
-        let f1_g = f1.fix_variables(g);
+        let vi_variables = self.vi.num_vars;
+
+        let f1_g = &self.fixed_mult;
         let mut sum_xy = F::zero();
-        for x in 0..(1 << dim) {
-            let f2_x = f2[x];
+        for x in 0..(1 << vi_variables) {
+            let f2_x = self.vi[x];
             let f1_gx = f1_g
-                .fix_variables(&index_to_field_element(x, dim))
+                .fix_variables(&index_to_field_element(x, vi_variables))
                 .to_dense_multilinear_extension();
-            for y in 0..(1 << dim) {
-                sum_xy += f1_gx[y] * f2_x * f3[y];
+            for y in 0..(1 << self.vj.num_vars) {
+                sum_xy += f1_gx[y] * f2_x * self.vj[y];
             }
         }
         sum_xy
@@ -88,7 +82,7 @@ impl<F: Field> NaiveProver<F> {
 impl<F: Field> Prover<F> for NaiveProver<F> {
     // Needs to be refactored just my last sumcheck which i know works.
     fn compute_sum(&self) -> F {
-        self.calculate_sum_naive(&self.mult, &self.vi, &self.vj, &self.r)
+        self.calculate_sum_naive()
     }
 
     fn get_verifier_function(&self) -> DenseMultilinearExtension<F> {
@@ -98,7 +92,7 @@ impl<F: Field> Prover<F> for NaiveProver<F> {
         After that take the first variable and set it to 0 and the other one 1.
         */
         // Assume that the gate has been fixed.
-        assert_eq!(self.mult.num_vars, self.vi.num_vars * 3);
+        //assert_eq!(self.mult.num_vars, self.vi.num_vars * 3);
         let n = self.vi.num_vars + self.vj.num_vars;
 
         let total = 1 << n;
@@ -124,7 +118,7 @@ impl<F: Field> Prover<F> for NaiveProver<F> {
         1. Fix the first variable in mult. Then fix in vi. Once vi has no more variables fix vj.
         */
         let field_packed = &[random_field_element];
-        self.fixed_mult.fix_variables(field_packed);
+        self.fixed_mult = self.fixed_mult.fix_variables(field_packed);
 
         if (self.vi.num_vars > 0) {
             self.vi = self.vi.fix_variables(field_packed);
