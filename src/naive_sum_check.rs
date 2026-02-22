@@ -123,7 +123,7 @@ impl<F: Field> Prover<F> for NaiveProver<F> {
         if (self.vi.num_vars > 0) {
             self.vi = self.vi.fix_variables(field_packed);
         } else {
-            self.vj.fix_variables(field_packed);
+            self.vj = self.vj.fix_variables(field_packed);
         }
     }
 }
