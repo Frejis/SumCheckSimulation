@@ -10,6 +10,7 @@ mod data_structures;
 mod util;
 pub mod naive_sum_check;
 mod standard_verifier;
+mod fast_prover;
 
 fn main() {
     println!("Hello, world!");
