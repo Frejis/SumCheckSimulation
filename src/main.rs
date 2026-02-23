@@ -1,4 +1,3 @@
-use std::arch::x86_64::__m128bh;
 use ark_bls12_381::Fr;
 use ark_std::test_rng;
 use crate::data_structures::{Prover, Verifier};
@@ -33,13 +32,12 @@ fn main() {
 
 mod generic_tests {
     use ark_bls12_381::Fr;
-    use ark_ff::One;
-    use ark_std::{test_rng, UniformRand};
+    use ark_std::{test_rng};
     use crate::data_structures::{Prover, Verifier};
     use crate::naive_sum_check::NaiveProver;
     use crate::standard_verifier::StandardVerifier;
     use crate::util;
-    use crate::util::{random_gate, random_gkr_instance};
+    use crate::util::{random_gate};
 
     #[test]
     fn test_verifier_first_round() {

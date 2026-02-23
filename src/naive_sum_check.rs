@@ -77,6 +77,27 @@ impl<F: Field> NaiveProver<F> {
         }
         sum_xy
     }
+
+    pub fn ark_compute_sum_naive(
+        f1: &SparseMultilinearExtension<F>,
+        f2: &DenseMultilinearExtension<F>,
+        f3: &DenseMultilinearExtension<F>,
+        g: &[F],
+    ) -> F {
+        let dim = f2.num_vars;
+        let f1_g = f1.fix_variables(g);
+        let mut sum_xy = F::zero();
+        for x in 0..(1 << dim) {
+            let f2_x = f2[x];
+            let f1_gx = f1_g
+                .fix_variables(&index_to_field_element(x, dim))
+                .to_dense_multilinear_extension();
+            for y in 0..(1 << dim) {
+                sum_xy += f1_gx[y] * f2_x * f3[y];
+            }
+        }
+        sum_xy
+    }
 }
 
 impl<F: Field> Prover<F> for NaiveProver<F> {
@@ -149,12 +170,6 @@ mod tests {
             assert_eq!(field_index, points)
         }
     }
-
-    #[test]
-    fn test_naive_sum_check() {
-
-    }
-
     #[test]
     fn test_get_verifier_function() {
         let mut rng = test_rng();
@@ -191,5 +206,20 @@ mod tests {
         prover.fix_variable(r_field);
 
         assert_eq!(prover.vi.num_vars + prover.vj.num_vars, gate_length * 2 - 1);
+    }
+
+    #[test]
+    fn test_naive_is_same_as_arks_initially() {
+        let gate_length = 7;
+        let fixed_gate: Vec<Fr> = random_gate(gate_length);
+
+        let mut rng = test_rng();
+        let (mult, vi, vj) = util::random_gkr_instance(gate_length, &mut rng);
+        let ark_sum = NaiveProver::ark_compute_sum_naive(&mult, &vi, &vj, &*fixed_gate);
+        let mut prover = NaiveProver::new(mult, vi, vj, Vec::from(fixed_gate));
+
+        let my_sum = prover.compute_sum();
+        println!("My sum = {my_sum}, actual sum = {ark_sum}");
+        assert_eq!(my_sum, ark_sum);
     }
 }
