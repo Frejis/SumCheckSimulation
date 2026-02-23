@@ -3,7 +3,7 @@ use ark_std::test_rng;
 use crate::data_structures::{Prover, Verifier};
 use crate::naive_sum_check::NaiveProver;
 use crate::standard_verifier::StandardVerifier;
-use crate::util::{random_gate, random_gkr_instance};
+use crate::util::{random_gate, random_gkr_round_gates};
 
 mod data_structures;
 mod util;
@@ -17,7 +17,7 @@ fn main() {
     // Just testing things out. First create a random GKR instance with Fr
     let variables = 10;
     let mut rng = test_rng();
-    let (mult, vi, vj) = random_gkr_instance::<Fr, _>(10, &mut rng);
+    let (mult, vi, vj) = random_gkr_round_gates::<Fr, _>(10, &mut rng);
     let rand_gate = random_gate(variables);
 
     let prover = NaiveProver::new(mult, vi, vj, rand_gate);
@@ -47,7 +47,7 @@ mod generic_tests {
         let fixed_gate = random_gate(variables);
 
         let mut rng = test_rng();
-        let (mult, vi, vj) = util::random_gkr_instance(variables, &mut rng);
+        let (mult, vi, vj) = util::random_gkr_round_gates(variables, &mut rng);
         let prover: NaiveProver<Fr> = NaiveProver::new(mult, vi, vj, Vec::from(fixed_gate));
         // Now we test the g_func gives what we expect
         let verifier = StandardVerifier::new(variables, prover.compute_sum());
@@ -64,7 +64,7 @@ mod generic_tests {
         let fixed_gate = random_gate(variables);
 
         let mut rng = test_rng();
-        let (mult, vi, vj) = util::random_gkr_instance(variables, &mut rng);
+        let (mult, vi, vj) = util::random_gkr_round_gates(variables, &mut rng);
         let mut prover: NaiveProver<Fr> = NaiveProver::new(mult, vi, vj, Vec::from(fixed_gate));
         // Now we test the g_func gives what we expect
         let mut verifier = StandardVerifier::new(variables, prover.compute_sum());

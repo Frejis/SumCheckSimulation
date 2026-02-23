@@ -6,7 +6,7 @@ use ark_std::test_rng;
 /// Taken from arkworks sumcheck protocol.
 /// Can be seen [here](https://github.com/arkworks-rs/sumcheck/blob/master/src/gkr_round_sumcheck/test.rs)
 /// This should only really be used for testing.
-pub fn random_gkr_instance<F: Field, R: RngCore>(
+pub fn random_gkr_round_gates<F: Field, R: RngCore>(
     dim: usize,
     rng: &mut R,
 ) -> (

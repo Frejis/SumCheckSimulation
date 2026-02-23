@@ -177,7 +177,7 @@ mod tests {
         // The first 5 variables are the gate, hence we also need 5 to fix the gate label.
         let variables = 7;
         let fixed_gate = util::random_gate(7);
-        let (mult, vi, vj) = util::random_gkr_instance(variables, &mut rng);
+        let (mult, vi, vj) = util::random_gkr_round_gates(variables, &mut rng);
         let prover: NaiveProver<Fr> = NaiveProver::new(mult, vi, vj, Vec::from(fixed_gate));
         // Now we test the g_func gives what we expect
         let verifier_func = prover.get_verifier_function();
@@ -199,7 +199,7 @@ mod tests {
         let fixed_gate: Vec<Fr> = random_gate(gate_length);
 
         let mut rng = test_rng();
-        let (mult, vi, vj) = util::random_gkr_instance(gate_length, &mut rng);
+        let (mult, vi, vj) = util::random_gkr_round_gates(gate_length, &mut rng);
         let mut prover = NaiveProver::new(mult, vi, vj, Vec::from(fixed_gate));
 
         let r_field = Fr::rand(&mut rng);
@@ -214,7 +214,7 @@ mod tests {
         let fixed_gate: Vec<Fr> = random_gate(gate_length);
 
         let mut rng = test_rng();
-        let (mult, vi, vj) = util::random_gkr_instance(gate_length, &mut rng);
+        let (mult, vi, vj) = util::random_gkr_round_gates(gate_length, &mut rng);
         let ark_sum = NaiveProver::ark_compute_sum_naive(&mult, &vi, &vj, &*fixed_gate);
         let mut prover = NaiveProver::new(mult, vi, vj, Vec::from(fixed_gate));
 
