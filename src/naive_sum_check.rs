@@ -124,7 +124,7 @@ impl<F: Field> Prover<F> for NaiveProver<F> {
             let field_index: Vec<F> = index_to_field_element(mask, n);
 
             let value = self.eval_g(&field_index);
-            if (field_index[0].is_zero()) {
+            if field_index[0].is_zero() {
                 s0 += &value;
             } else if (field_index[0].is_one()) {
                 s1 += &value;

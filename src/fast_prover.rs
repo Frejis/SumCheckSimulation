@@ -1,3 +1,4 @@
+use ark_bls12_381::Fr;
 use ark_ff::Field;
 use ark_poly::{DenseMultilinearExtension, MultilinearExtension, Polynomial, SparseMultilinearExtension};
 use crate::data_structures::{GKRRound, Prover};
@@ -13,19 +14,24 @@ pub struct FastProver<F: Field> {
 
 impl<F: Field> FastProver<F> {
     pub fn new(
-        mult: SparseMultilinearExtension<F>,
-        vi: DenseMultilinearExtension<F>,
-        vj: DenseMultilinearExtension<F>,
-        gate: Vec<F>,
+        mult: &SparseMultilinearExtension<F>,
+        vi: &DenseMultilinearExtension<F>,
+        vj: &DenseMultilinearExtension<F>,
+        gate: &Vec<F>,
     ) -> Self {
-        let gkr_round = GKRRound::new(mult.clone(), vi, vj);
-        Self {
-            fixed_mult: mult.clone().fix_variables(&*gate),
+        let gkr_round = GKRRound::new(mult, vi, vj);
+        let should_initialize_phase_one = vi.num_vars > 0;
+        let mut temp_res = Self {
+            fixed_mult: mult.fix_variables(&*gate), // I don't think i needed to call clone.
             p: Vec::new(),
             q: Vec::new(),
-            gate,
+            gate: gate.clone(),
             gkr_round
+        };
+        if should_initialize_phase_one {
+            temp_res.initialize_phase_one()
         }
+        temp_res
     }
 
     fn create_combined_vec_array(first_arr: &Vec<F>, last_arr: &Vec<F>) -> Vec<F> {
@@ -72,10 +78,25 @@ impl<F: Field> Prover<F> for FastProver<F> {
     }
 
     fn get_verifier_function(&self) -> DenseMultilinearExtension<F> {
-        todo!()
+        let mut s0 = F::zero();
+        let mut s1 = F::zero();
+
+        for mask in 0..self.p.len() {
+
+            let value = self.p[mask] * self.q[mask];
+            if (mask & 1 == 0) {
+                s0 += &value;
+            } else {
+                s1 += &value;
+            }
+        }
+
+        DenseMultilinearExtension::from_evaluations_vec(1, vec![s0, s1])
     }
 
     fn fix_variable(&mut self, random_field_element: F) {
+        // This fixes last bit while naive fixes first bit.
+        // TODO rewrite the bit mask and test if it then gives the sum is same as naive after fixing.
         let new_size = self.p.len() >> 1;
         let mut new_p = Vec::with_capacity(new_size);
         let mut new_q = Vec::with_capacity(new_size);
@@ -108,9 +129,10 @@ mod test {
     use ark_ff::Zero;
     use ark_std::{test_rng, UniformRand};
     use rand::random;
-    use crate::data_structures::{GKRRound, Prover};
+    use crate::data_structures::{GKRRound, Prover, Verifier};
     use crate::fast_prover::FastProver;
     use crate::naive_sum_check::NaiveProver;
+    use crate::standard_verifier::StandardVerifier;
     use crate::util::{random_gate, random_gkr_round_gates};
 
     #[test]
@@ -118,11 +140,9 @@ mod test {
         let mut rng = test_rng();
         let (mult, vi, vj) = random_gkr_round_gates::<Fr, _>(7, &mut rng);
         let random_gate = random_gate(7);
-        let mut fast_prover = FastProver::new(mult.clone(), vi.clone(), vj.clone(), random_gate.clone());
-        let naive_prover = NaiveProver::new(mult.clone(), vi.clone(), vj.clone(), random_gate.clone());
-        fast_prover.initialize_phase_one();
+        let mut fast_prover = FastProver::new(&mult, &vi, &vj, &random_gate);
 
-        let naive_sum = NaiveProver::ark_compute_sum_naive(&mult, &vi, &vj, &*random_gate);
+        let naive_sum = NaiveProver::ark_compute_sum_naive(&mult, &vi, &vj, &random_gate);
         let fast_sum = fast_prover.compute_sum();
         assert_eq!(naive_sum, fast_sum);
     }
@@ -132,13 +152,23 @@ mod test {
         let mut rand = test_rng();
         let gkrr: GKRRound<Fr> = GKRRound::new_rand();
         let random_gate = random_gate(gkrr.gate_labes());
-        let mut fast_prover = FastProver::new(gkrr.mult().clone(), gkrr.vi().clone(), gkrr.vj().clone(), random_gate.clone());
-        fast_prover.initialize_phase_one();
+        let mut fast_prover = FastProver::new(gkrr.mult(), gkrr.vi(), gkrr.vj(), &random_gate);
 
         let r_field = Fr::rand(&mut rand);
 
-        fast_prover.fix_variable(r_field.clone());
+        fast_prover.fix_variable(r_field);
         assert_eq!(fast_prover.p.len(), (1 << gkrr.gate_labes() - 1));
         assert_eq!(fast_prover.q.len(), (1 << gkrr.gate_labes() - 1));
+    }
+
+    #[test]
+    fn test_get_verifier_function() {
+        let gkrr: GKRRound<Fr> = GKRRound::new_rand();
+        let random_gate = random_gate(gkrr.gate_labes());
+        let fast_prover = FastProver::new(gkrr.mult(), gkrr.vi(), gkrr.vj(), &random_gate);
+        // max degree is 5 for now, i think it should be 2.
+        let verifier = StandardVerifier::new(5, fast_prover.compute_sum());
+        let verifier_func = fast_prover.get_verifier_function();
+        assert!(verifier.check_claimed_value(&verifier_func));
     }
 }

@@ -79,15 +79,15 @@ impl<F: Field> GKRRound<F> {
 
 impl<F: Field> GKRRound<F> {
     pub fn new(
-        mult: SparseMultilinearExtension<F>,
-        vi: DenseMultilinearExtension<F>,
-        vj: DenseMultilinearExtension<F>,
+        mult: &SparseMultilinearExtension<F>,
+        vi: &DenseMultilinearExtension<F>,
+        vj: &DenseMultilinearExtension<F>,
     ) -> GKRRound<F> {
         GKRRound {
-            mult,
+            mult: mult.clone(),
             gate_labes: vi.num_vars,
-            vi,
-            vj,
+            vi: vi.clone(),
+            vj: vj.clone(),
         }
     }
     
