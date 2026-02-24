@@ -29,13 +29,9 @@ impl<F: Field> FastProver<F> {
     }
 
     fn create_combined_vec_array(first_arr: &Vec<F>, last_arr: &Vec<F>) -> Vec<F> {
-        let mut vec_res = Vec::with_capacity(first_arr.len()+last_arr.len());
-        for i in 0..first_arr.len() {
-            vec_res.push(first_arr[i]);
-        }
-        for i in 0..first_arr.len() {
-            vec_res.push(last_arr[i]);
-        }
+        let mut vec_res = Vec::with_capacity(first_arr.len() + last_arr.len());
+        vec_res.extend_from_slice(first_arr);
+        vec_res.extend_from_slice(last_arr);
         vec_res
     }
 
@@ -69,7 +65,7 @@ impl<F: Field> Prover<F> for FastProver<F> {
     fn compute_sum(&self) -> F {
         // This currently only works for the first half.
         let mut sum = F::zero();
-        for i in 0..(1 << self.gkr_round.vi().num_vars) {
+        for i in 0..self.p.len() {
             sum += self.p[i] * self.q[i];
         }
         sum
@@ -80,16 +76,39 @@ impl<F: Field> Prover<F> for FastProver<F> {
     }
 
     fn fix_variable(&mut self, random_field_element: F) {
-        todo!()
+        let new_size = self.p.len() >> 1;
+        let mut new_p = Vec::with_capacity(new_size);
+        let mut new_q = Vec::with_capacity(new_size);
+
+        // the bit being fixed (highest bit)
+        let bit = new_size; // == 1 << (num_vars - 1)
+
+        for x_prime in 0..new_size {
+            let idx0 = x_prime;        // bit = 0
+            let idx1 = x_prime | bit;  // bit = 1
+
+            let p0 = self.p[idx0];
+            let p1 = self.p[idx1];
+
+            let q0 = self.q[idx0];
+            let q1 = self.q[idx1];
+
+            new_p.push(p0 + random_field_element * (p1 - p0));
+            new_q.push(q0 + random_field_element * (q1 - q0));
+        }
+
+        self.p = new_p;
+        self.q = new_q;
     }
 }
 
 
 mod test {
     use ark_bls12_381::Fr;
-    use ark_std::test_rng;
+    use ark_ff::Zero;
+    use ark_std::{test_rng, UniformRand};
     use rand::random;
-    use crate::data_structures::Prover;
+    use crate::data_structures::{GKRRound, Prover};
     use crate::fast_prover::FastProver;
     use crate::naive_sum_check::NaiveProver;
     use crate::util::{random_gate, random_gkr_round_gates};
@@ -106,5 +125,20 @@ mod test {
         let naive_sum = NaiveProver::ark_compute_sum_naive(&mult, &vi, &vj, &*random_gate);
         let fast_sum = fast_prover.compute_sum();
         assert_eq!(naive_sum, fast_sum);
+    }
+
+    #[test]
+    fn test_fix_variable_fast_prover() {
+        let mut rand = test_rng();
+        let gkrr: GKRRound<Fr> = GKRRound::new_rand();
+        let random_gate = random_gate(gkrr.gate_labes());
+        let mut fast_prover = FastProver::new(gkrr.mult().clone(), gkrr.vi().clone(), gkrr.vj().clone(), random_gate.clone());
+        fast_prover.initialize_phase_one();
+
+        let r_field = Fr::rand(&mut rand);
+
+        fast_prover.fix_variable(r_field.clone());
+        assert_eq!(fast_prover.p.len(), (1 << gkrr.gate_labes() - 1));
+        assert_eq!(fast_prover.q.len(), (1 << gkrr.gate_labes() - 1));
     }
 }
