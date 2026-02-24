@@ -1,8 +1,7 @@
-use ark_bls12_381::Fr;
 use ark_ff::Field;
 use ark_poly::{DenseMultilinearExtension, MultilinearExtension, Polynomial, SparseMultilinearExtension};
 use crate::data_structures::{GKRRound, Prover};
-use crate::util::{index_to_field_element, random_gate};
+use crate::util::{index_to_field_element};
 
 pub struct FastProver<F: Field> {
     fixed_mult: SparseMultilinearExtension<F>,
@@ -94,28 +93,23 @@ impl<F: Field> Prover<F> for FastProver<F> {
         DenseMultilinearExtension::from_evaluations_vec(1, vec![s0, s1])
     }
 
-    fn fix_variable(&mut self, random_field_element: F) {
-        // This fixes last bit while naive fixes first bit.
-        // TODO rewrite the bit mask and test if it then gives the sum is same as naive after fixing.
-        let new_size = self.p.len() >> 1;
-        let mut new_p = Vec::with_capacity(new_size);
-        let mut new_q = Vec::with_capacity(new_size);
+    fn fix_variable(&mut self, r: F) {
+        let n = self.p.len();
+        assert_eq!(n % 2, 0);
+        let half = n >> 1;
+        let mut new_p = Vec::with_capacity(half);
+        let mut new_q = Vec::with_capacity(half);
 
-        // the bit being fixed (highest bit)
-        let bit = new_size; // == 1 << (num_vars - 1)
-
-        for x_prime in 0..new_size {
-            let idx0 = x_prime;        // bit = 0
-            let idx1 = x_prime | bit;  // bit = 1
-
-            let p0 = self.p[idx0];
-            let p1 = self.p[idx1];
-
-            let q0 = self.q[idx0];
-            let q1 = self.q[idx1];
-
-            new_p.push(p0 + random_field_element * (p1 - p0));
-            new_q.push(q0 + random_field_element * (q1 - q0));
+        for i in 0..half {
+            // LSB bit = 0 hver gang.
+            let index = i << 1;
+            let index_1 = index | 1;
+            let a_0 = self.p[index];
+            let a_1 = self.p[index_1];
+            let b_0 = self.q[index];
+            let b_1 = self.q[index_1];
+            new_p.push(a_0 + r * (a_1 - a_0));
+            new_q.push(b_0 + r * (b_1 - b_0));
         }
 
         self.p = new_p;
@@ -128,7 +122,6 @@ mod test {
     use ark_bls12_381::Fr;
     use ark_ff::Zero;
     use ark_std::{test_rng, UniformRand};
-    use rand::random;
     use crate::data_structures::{GKRRound, Prover, Verifier};
     use crate::fast_prover::FastProver;
     use crate::naive_sum_check::NaiveProver;
@@ -148,7 +141,7 @@ mod test {
     }
 
     #[test]
-    fn test_fix_variable_fast_prover() {
+    fn test_fix_variable_reduces_amount_of_variables() {
         let mut rand = test_rng();
         let gkrr: GKRRound<Fr> = GKRRound::new_rand();
         let random_gate = random_gate(gkrr.gate_labes());
@@ -159,6 +152,34 @@ mod test {
         fast_prover.fix_variable(r_field);
         assert_eq!(fast_prover.p.len(), (1 << gkrr.gate_labes() - 1));
         assert_eq!(fast_prover.q.len(), (1 << gkrr.gate_labes() - 1));
+    }
+
+    #[test]
+    fn test_verifier_func_value() {
+        let gkrr: GKRRound<Fr> = GKRRound::new_rand();
+        let random_gate = random_gate(gkrr.gate_labes());
+        let mut prover = FastProver::new(gkrr.mult(), gkrr.vi(), gkrr.vj(), &random_gate);
+
+        let verifier_func = prover.get_verifier_function();
+        prover.fix_variable(Fr::zero());
+        assert_eq!(prover.compute_sum(), verifier_func[0]);
+    }
+
+    #[test]
+    fn test_fix_variable_same_as_naive() {
+        let mut rand = test_rng();
+        let gkrr: GKRRound<Fr> = GKRRound::new_rand();
+        let random_gate = random_gate(gkrr.gate_labes());
+        let mut fast_prover = FastProver::new(gkrr.mult(), gkrr.vi(), gkrr.vj(), &random_gate);
+        let mut naive_prover = NaiveProver::new(gkrr.mult().clone(), gkrr.vi().clone(), gkrr.vj().clone(), random_gate);
+
+        let r_field = Fr::rand(&mut rand);
+
+        fast_prover.fix_variable(r_field);
+        naive_prover.fix_variable(r_field);
+        let fast_sum = fast_prover.compute_sum();
+        let naive_sum = naive_prover.compute_sum();
+        assert_eq!(fast_sum, naive_sum);
     }
 
     #[test]
