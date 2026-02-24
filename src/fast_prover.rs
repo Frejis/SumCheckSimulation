@@ -102,11 +102,11 @@ impl<F: Field> Prover<F> for FastProver<F> {
 
         for i in 0..half {
             // LSB bit = 0 hver gang.
-            let index = i << 1;
-            let index_1 = index | 1;
-            let a_0 = self.p[index];
+            let index_0 = i << 1;
+            let index_1 = index_0 | 1;
+            let a_0 = self.p[index_0];
             let a_1 = self.p[index_1];
-            let b_0 = self.q[index];
+            let b_0 = self.q[index_0];
             let b_1 = self.q[index_1];
             new_p.push(a_0 + r * (a_1 - a_0));
             new_q.push(b_0 + r * (b_1 - b_0));

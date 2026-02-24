@@ -2,6 +2,10 @@ use ark_ff::Field;
 use ark_poly::{DenseMultilinearExtension, MultilinearExtension, SparseMultilinearExtension};
 use ark_std::rand::RngCore;
 use ark_std::test_rng;
+use crate::data_structures::{GKRRound, Prover, Verifier};
+use crate::fast_prover::FastProver;
+use crate::naive_sum_check::NaiveProver;
+use crate::standard_verifier::StandardVerifier;
 
 /// Taken from arkworks sumcheck protocol.
 /// Can be seen [here](https://github.com/arkworks-rs/sumcheck/blob/master/src/gkr_round_sumcheck/test.rs)
@@ -47,4 +51,52 @@ pub fn random_gate<F: Field>(label_length: usize) -> Vec<F> {
         res.push(F::rand(&mut rng));
     }
     res
+}
+
+
+struct GKRRoundSumCheckSimulator<F: Field, P: Prover<F>, V: Verifier<F>> {
+    gkr_round: GKRRound<F>,
+    prover: P,
+    verifier: V,
+}
+
+impl<F: Field, P: Prover<F>, V: Verifier<F>> GKRRoundSumCheckSimulator<F, P, V> {
+
+    pub fn new(prover: P, verifier: V) -> Self {
+        Self {
+            gkr_round: GKRRound::new_rand(),
+            prover,
+            verifier,
+        }
+    }
+
+    pub fn new_fast_prover_std_verifier() -> Self {
+        let gkr_round = GKRRound::new_rand();
+        let random_gate = random_gate(gkr_round.gate_labes());
+
+        let prover = FastProver::new(
+            gkr_round.mult(),
+            gkr_round.vi(),
+            gkr_round.vj(),
+            &random_gate,
+        );
+
+        let verifier = StandardVerifier::new(3, F::zero());
+
+        Self {
+            gkr_round,
+            prover,
+            verifier,
+        }
+    }
+
+    pub fn new_naive_prover_std_verifier() -> Self {
+        let gkr_round = GKRRound::new_rand();
+        let random_gate = random_gate(gkr_round.gate_labes());
+        Self {
+            prover: &NaiveProver::new(*gkr_round.mult(), *gkr_round.vi(), *gkr_round.vj(), random_gate),
+            verifier: &StandardVerifier::new(3, F::zero()),
+            gkr_round,
+        }
+    }
 }
