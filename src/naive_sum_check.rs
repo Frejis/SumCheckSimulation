@@ -222,4 +222,18 @@ mod tests {
         println!("My sum = {my_sum}, actual sum = {ark_sum}");
         assert_eq!(my_sum, ark_sum);
     }
+
+    #[test]
+    fn test_fix_variable_value() {
+        let gate_length = 7;
+        let fixed_gate: Vec<Fr> = random_gate(gate_length);
+
+        let mut rng = test_rng();
+        let (mult, vi, vj) = util::random_gkr_round_gates(gate_length, &mut rng);
+        let mut prover = NaiveProver::new(mult, vi, vj, Vec::from(fixed_gate));
+
+        let verifier_func = prover.get_verifier_function();
+        prover.fix_variable(Fr::zero());
+        assert_eq!(prover.compute_sum(), verifier_func[0]);
+    }
 }
