@@ -2,6 +2,7 @@ use std::arch::x86_64::_mm_aeskeygenassist_si128;
 use ark_ff::{Field, SqrtPrecomputation, Zero};
 use ark_poly::{DenseMultilinearExtension, MultilinearExtension, Polynomial, SparseMultilinearExtension};
 use ark_std::iterable::Iterable;
+use crate::circuit_structures::GateType;
 use crate::data_structures::{GKRRound, Prover};
 use crate::util::index_to_field_element;
 
@@ -49,7 +50,10 @@ impl<F: Field> NaiveProver<F> {
         let vj_val = self.gkr_round.vj.evaluate(v);
         let mult_val = self.get_mult_fixed().evaluate(point);
 
-        vi_val * vj_val * mult_val
+        match self.gkr_round.gate_type {
+            GateType::Add => (vi_val + vj_val) * mult_val,
+            GateType::Mul => vi_val * vj_val * mult_val,
+        }
     }
 
     fn calculate_sum_naive(
@@ -65,7 +69,10 @@ impl<F: Field> NaiveProver<F> {
                 .fix_variables(&index_to_field_element(x, vi_variables))
                 .to_dense_multilinear_extension();
             for y in 0..(1 << self.gkr_round.vj.num_vars) {
-                sum_xy += f1_gx[y] * f2_x * self.gkr_round.vj[y];
+                match self.gkr_round.gate_type {
+                    GateType::Add => sum_xy += f1_gx[y] * (f2_x + self.gkr_round.vj[y]),
+                    GateType::Mul => sum_xy += f1_gx[y] * f2_x * self.gkr_round.vj[y],
+                }
             }
         }
         sum_xy
@@ -76,6 +83,7 @@ impl<F: Field> NaiveProver<F> {
         f2: &DenseMultilinearExtension<F>,
         f3: &DenseMultilinearExtension<F>,
         g: &[F],
+        gate_type: &GateType
     ) -> F {
         let dim = f2.num_vars;
         let f1_g = f1.fix_variables(g);
@@ -86,7 +94,10 @@ impl<F: Field> NaiveProver<F> {
                 .fix_variables(&index_to_field_element(x, dim))
                 .to_dense_multilinear_extension();
             for y in 0..(1 << dim) {
-                sum_xy += f1_gx[y] * f2_x * f3[y];
+                match gate_type {
+                    GateType::Add => sum_xy += f1_gx[y] * (f2_x + f3[y]),
+                    GateType::Mul => sum_xy += f1_gx[y] * f2_x * f3[y],
+                }
             }
         }
         sum_xy
@@ -201,7 +212,7 @@ mod tests {
         let fixed_gate = util::random_gate(gkr_round.gate_labes());
 
         let prover: NaiveProver<Fr> = NaiveProver::new(gkr_round.clone(), &fixed_gate);
-        let ark_sum = NaiveProver::ark_compute_sum_naive(&gkr_round.mult(), &gkr_round.vi, &gkr_round.vj, &*fixed_gate);
+        let ark_sum = NaiveProver::ark_compute_sum_naive(&gkr_round.mult(), &gkr_round.vi, &gkr_round.vj, &*fixed_gate, &gkr_round.gate_type);
 
         let my_sum = prover.compute_sum();
         assert_eq!(my_sum, ark_sum);

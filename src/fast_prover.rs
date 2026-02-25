@@ -1,5 +1,7 @@
+use std::cmp::PartialEq;
 use ark_ff::Field;
 use ark_poly::{DenseMultilinearExtension, MultilinearExtension, Polynomial, SparseMultilinearExtension};
+use crate::circuit_structures::GateType;
 use crate::data_structures::{GKRRound, Prover};
 use crate::util::{index_to_field_element};
 
@@ -64,11 +66,13 @@ impl<F: Field> FastProver<F> {
 }
 
 impl<F: Field> Prover<F> for FastProver<F> {
-    fn compute_sum(&self) -> F {
-        // This currently only works for the first half.
+    fn compute_sum(&self) -> F { // This currently only works for the first half.
         let mut sum = F::zero();
         for i in 0..self.p.len() {
-            sum += self.p[i] * self.q[i];
+            match self.gkr_round.gate_type {
+                GateType::Add => sum += self.p[i] + self.q[i],
+                GateType::Mul => sum += self.p[i] * self.q[i],
+            }
         }
         sum
     }
@@ -76,17 +80,13 @@ impl<F: Field> Prover<F> for FastProver<F> {
     fn get_verifier_function(&self) -> DenseMultilinearExtension<F> {
         let mut s0 = F::zero();
         let mut s1 = F::zero();
-
         for mask in 0..self.p.len() {
-
-            let value = self.p[mask] * self.q[mask];
-            if (mask & 1 == 0) {
-                s0 += &value;
-            } else {
-                s1 += &value;
-            }
-        }
-
+            let value = match self.gkr_round.gate_type {
+                GateType::Mul => self.p[mask] * self.q[mask],
+                GateType::Add => self.p[mask] + self.q[mask],
+            };
+            if mask & 1 == 0 { s0 += value; }
+            else { s1 += value; } }
         DenseMultilinearExtension::from_evaluations_vec(1, vec![s0, s1])
     }
 
@@ -119,6 +119,7 @@ mod test {
     use ark_bls12_381::Fr;
     use ark_ff::Zero;
     use ark_std::{test_rng, UniformRand};
+    use crate::circuit_structures::GateType;
     use crate::data_structures::{GKRRound, Prover, Verifier};
     use crate::fast_prover::FastProver;
     use crate::naive_sum_check::NaiveProver;
@@ -127,11 +128,12 @@ mod test {
 
     #[test]
     fn first_phase_sum_is_identical_to_naive() {
-        let gkr_round: GKRRound<Fr> = GKRRound::new_rand();
+        let mut gkr_round: GKRRound<Fr> = GKRRound::new_rand();
+        gkr_round.gate_type = GateType::Mul;
         let random_gate = random_gate(gkr_round.gate_labes());
         let fast_prover = FastProver::new(gkr_round.clone(), &random_gate);
 
-        let naive_sum = NaiveProver::ark_compute_sum_naive(&gkr_round.mult(), &gkr_round.vi, &gkr_round.vj, &random_gate);
+        let naive_sum = NaiveProver::ark_compute_sum_naive(&gkr_round.mult(), &gkr_round.vi, &gkr_round.vj, &random_gate, &gkr_round.gate_type);
         let fast_sum = fast_prover.compute_sum();
         assert_eq!(naive_sum, fast_sum);
     }
@@ -164,7 +166,8 @@ mod test {
     #[test]
     fn test_fix_variable_same_as_naive() {
         let mut rand = test_rng();
-        let gkr_round: GKRRound<Fr> = GKRRound::new_rand();
+        let mut gkr_round: GKRRound<Fr> = GKRRound::new_rand();
+        gkr_round.gate_type = GateType::Mul;
         let random_gate = random_gate(gkr_round.gate_labes());
         let mut fast_prover = FastProver::new(gkr_round.clone(), &random_gate);
 

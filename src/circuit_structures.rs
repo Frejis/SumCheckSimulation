@@ -3,7 +3,7 @@ use ark_poly::{DenseMultilinearExtension, SparseMultilinearExtension};
 use rand::Rng;
 
 /// Gate type: add or multiply child outputs.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum GateType {
     Add,
     Mul,
