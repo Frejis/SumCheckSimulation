@@ -10,14 +10,14 @@ use crate::standard_verifier::StandardVerifier;
 /// Taken from arkworks sumcheck protocol.
 /// Can be seen [here](https://github.com/arkworks-rs/sumcheck/blob/master/src/gkr_round_sumcheck/test.rs)
 /// This should only really be used for testing.
-pub fn random_gkr_round_gates<F: Field, R: RngCore>(
+pub fn random_gkr_round_gates<F: Field>(
     dim: usize,
-    rng: &mut R,
 ) -> (
     SparseMultilinearExtension<F>,
     DenseMultilinearExtension<F>,
     DenseMultilinearExtension<F>,
 ) {
+    let rng = &mut test_rng();
     (
         SparseMultilinearExtension::rand_with_config(dim * 3, 1 << dim, rng),
         DenseMultilinearExtension::rand(dim, rng),
@@ -80,7 +80,7 @@ impl<F: Field, P: Prover<F>, V: Verifier<F>> GKRRoundSumCheckSimulator<F, P, V> 
         }
         self.final_check();
     }
-    
+
     pub fn final_check(&self) {
         self.verifier.final_check()
     }

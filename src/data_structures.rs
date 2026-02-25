@@ -1,9 +1,11 @@
 /*
 This file will contain structures relevant to setting up the proof system.
 */
+use rand::{Rng, RngCore};
 use ark_ff::Field;
 use ark_poly::{DenseMultilinearExtension, SparseMultilinearExtension};
 use ark_std::test_rng;
+use crate::circuit_structures::GateType;
 use crate::util::random_gkr_round_gates;
 
 pub trait Prover<F: Field> {
@@ -26,13 +28,13 @@ pub trait Verifier<F: Field> {
 
     // Takes as input a multilinear extension and checks that for each field their sum is the claim.
     fn check_claimed_value(&self, fx: &DenseMultilinearExtension<F>) -> bool;
-    
+
     /// Should ideally take a function by the prover and do all necessary checks
     /// If any fails then it panics, and if everything is good then it returns a random field element.
     fn handle_round(&mut self, fx: &DenseMultilinearExtension<F>) -> F;
-    
+
     fn set_claim(&mut self, claim: F);
-    
+
     fn final_check(&self);
 }
 
@@ -42,6 +44,7 @@ pub struct GKRRound<F: Field> {
     pub(crate) vi: DenseMultilinearExtension<F>,
     pub(crate) vj: DenseMultilinearExtension<F>,
     gate_labes: usize,
+    pub(crate) gate_type: GateType
 }
 
 impl<F: Field> GKRRound<F> {
@@ -85,28 +88,36 @@ impl<F: Field> GKRRound<F> {
         mult: &SparseMultilinearExtension<F>,
         vi: &DenseMultilinearExtension<F>,
         vj: &DenseMultilinearExtension<F>,
+        gate_type: &GateType,
     ) -> GKRRound<F> {
         GKRRound {
             mult: mult.clone(),
             gate_labes: vi.num_vars,
             vi: vi.clone(),
             vj: vj.clone(),
+            gate_type: gate_type.clone(),
         }
     }
-    
+
     /// This function should only be used for testing purposes.
     pub fn new_rand() -> GKRRound<F> {
-        let mut rand = test_rng();
-        let (mult, vi, vj) = random_gkr_round_gates(7, &mut rand);
+
+        let typ = if test_rng().r#gen::<bool>() {
+            GateType::Add
+        } else {
+            GateType::Mul
+        };
+        let (mult, vi, vj) = random_gkr_round_gates(7);
         GKRRound {
             mult,
             vi,
             vj,
             gate_labes: 7,
+            gate_type: typ,
         }
     }
-    
-    
+
+
 }
 
 pub trait GKRRoundProver<F: Field> {

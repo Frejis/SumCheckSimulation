@@ -168,7 +168,7 @@ mod tests {
     fn test_get_verifier_function() {
         let gkr_round = GKRRound::new_rand();
         let fixed_gate = util::random_gate(gkr_round.gate_labes());
-        
+
         let prover: NaiveProver<Fr> = NaiveProver::new(gkr_round, &fixed_gate);
         // Now we test the g_func gives what we expect
         let verifier_func = prover.get_verifier_function();
@@ -188,7 +188,7 @@ mod tests {
         let mut prover: NaiveProver<Fr> = NaiveProver::new(gkr_round, &fixed_gate);
 
         let old_verifier_vars = prover.get_verifier_function().num_vars();
-        
+
         let r_field = Fr::rand(&mut rng);
         prover.fix_variable(r_field);
 

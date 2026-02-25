@@ -9,6 +9,7 @@ mod util;
 pub mod naive_sum_check;
 mod standard_verifier;
 mod fast_prover;
+pub mod circuit_structures;
 
 fn main() {
     println!("Hello, world!");
