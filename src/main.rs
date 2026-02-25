@@ -1,4 +1,5 @@
 use ark_bls12_381::Fr;
+use crate::circuit_structures::GkrCircuit;
 use crate::data_structures::{GKRRound, Prover, Verifier};
 use crate::naive_sum_check::NaiveProver;
 use crate::standard_verifier::StandardVerifier;
@@ -9,20 +10,29 @@ mod util;
 pub mod naive_sum_check;
 mod standard_verifier;
 mod fast_prover;
+pub mod circuit_structures;
 
 fn main() {
     println!("Hello, world!");
 
     // Just testing things out. First create a random GKR instance with Fr
-    let gkr_round: GKRRound<Fr> = GKRRound::new_rand();
-    let random_gate = random_gate(gkr_round.gate_labes());
-    let prover = NaiveProver::new(gkr_round.clone(), &random_gate);
-    // Now we test the g_func gives what we expect
-    let verifier = StandardVerifier::new(3, prover.compute_sum(), gkr_round);
-    let verifier_func = prover.get_verifier_function();
-    if verifier.check_claimed_value(&verifier_func) {
-        println!("Claimed value is correct.");
+    let mut rng = rand::thread_rng();
+    let layer_sizes = vec![8, 16, 32]; // must be powers of 2
+    let circuit = GkrCircuit::<Fr>::random(&layer_sizes, &mut rng);
+    for i in 0..layer_sizes.len() {
+        let layer = &circuit.layers[i];
+        let k_x = layer_sizes[i].trailing_zeros() as usize;
+        let k_child = layer_sizes[i+1].trailing_zeros() as usize;
+
+        // Gate value function
+        let W_i = layer.value_extension(k_x);
+
+        // Wiring predicates
+        let (add_i, mul_i) = layer.wiring_predicates(k_x, k_child);
+
+        
     }
+
 }
 
 mod generic_tests {
