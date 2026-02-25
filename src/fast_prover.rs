@@ -13,19 +13,16 @@ pub struct FastProver<F: Field> {
 
 impl<F: Field> FastProver<F> {
     pub fn new(
-        mult: &SparseMultilinearExtension<F>,
-        vi: &DenseMultilinearExtension<F>,
-        vj: &DenseMultilinearExtension<F>,
+        gkr_round: GKRRound<F>,
         gate: &Vec<F>,
     ) -> Self {
-        let gkr_round = GKRRound::new(mult, vi, vj);
-        let should_initialize_phase_one = vi.num_vars > 0;
+        let should_initialize_phase_one = gkr_round.vi.num_vars > 0;
         let mut temp_res = Self {
-            fixed_mult: mult.fix_variables(&*gate), // I don't think i needed to call clone.
+            fixed_mult: gkr_round.mult().fix_variables(&*gate), // I don't think i needed to call clone.
             p: Vec::new(),
             q: Vec::new(),
             gate: gate.clone(),
-            gkr_round
+            gkr_round: gkr_round.clone()
         };
         if should_initialize_phase_one {
             temp_res.initialize_phase_one()
@@ -130,12 +127,11 @@ mod test {
 
     #[test]
     fn first_phase_sum_is_identical_to_naive() {
-        let mut rng = test_rng();
-        let (mult, vi, vj) = random_gkr_round_gates::<Fr, _>(7, &mut rng);
-        let random_gate = random_gate(7);
-        let mut fast_prover = FastProver::new(&mult, &vi, &vj, &random_gate);
+        let gkr_round: GKRRound<Fr> = GKRRound::new_rand();
+        let random_gate = random_gate(gkr_round.gate_labes());
+        let fast_prover = FastProver::new(gkr_round.clone(), &random_gate);
 
-        let naive_sum = NaiveProver::ark_compute_sum_naive(&mult, &vi, &vj, &random_gate);
+        let naive_sum = NaiveProver::ark_compute_sum_naive(&gkr_round.mult(), &gkr_round.vi, &gkr_round.vj, &random_gate);
         let fast_sum = fast_prover.compute_sum();
         assert_eq!(naive_sum, fast_sum);
     }
@@ -143,22 +139,22 @@ mod test {
     #[test]
     fn test_fix_variable_reduces_amount_of_variables() {
         let mut rand = test_rng();
-        let gkrr: GKRRound<Fr> = GKRRound::new_rand();
-        let random_gate = random_gate(gkrr.gate_labes());
-        let mut fast_prover = FastProver::new(gkrr.mult(), gkrr.vi(), gkrr.vj(), &random_gate);
+        let gkr_round: GKRRound<Fr> = GKRRound::new_rand();
+        let random_gate = random_gate(gkr_round.gate_labes());
+        let mut fast_prover = FastProver::new(gkr_round.clone(), &random_gate);
 
         let r_field = Fr::rand(&mut rand);
 
         fast_prover.fix_variable(r_field);
-        assert_eq!(fast_prover.p.len(), (1 << gkrr.gate_labes() - 1));
-        assert_eq!(fast_prover.q.len(), (1 << gkrr.gate_labes() - 1));
+        assert_eq!(fast_prover.p.len(), (1 << gkr_round.gate_labes() - 1));
+        assert_eq!(fast_prover.q.len(), (1 << gkr_round.gate_labes() - 1));
     }
 
     #[test]
     fn test_verifier_func_value() {
-        let gkrr: GKRRound<Fr> = GKRRound::new_rand();
-        let random_gate = random_gate(gkrr.gate_labes());
-        let mut prover = FastProver::new(gkrr.mult(), gkrr.vi(), gkrr.vj(), &random_gate);
+        let gkr_round: GKRRound<Fr> = GKRRound::new_rand();
+        let random_gate = random_gate(gkr_round.gate_labes());
+        let mut prover = FastProver::new(gkr_round.clone(), &random_gate);
 
         let verifier_func = prover.get_verifier_function();
         prover.fix_variable(Fr::zero());
@@ -168,10 +164,11 @@ mod test {
     #[test]
     fn test_fix_variable_same_as_naive() {
         let mut rand = test_rng();
-        let gkrr: GKRRound<Fr> = GKRRound::new_rand();
-        let random_gate = random_gate(gkrr.gate_labes());
-        let mut fast_prover = FastProver::new(gkrr.mult(), gkrr.vi(), gkrr.vj(), &random_gate);
-        let mut naive_prover = NaiveProver::new(gkrr.mult().clone(), gkrr.vi().clone(), gkrr.vj().clone(), random_gate);
+        let gkr_round: GKRRound<Fr> = GKRRound::new_rand();
+        let random_gate = random_gate(gkr_round.gate_labes());
+        let mut fast_prover = FastProver::new(gkr_round.clone(), &random_gate);
+
+        let mut naive_prover = NaiveProver::new(gkr_round, &random_gate);
 
         let r_field = Fr::rand(&mut rand);
 
@@ -184,11 +181,11 @@ mod test {
 
     #[test]
     fn test_get_verifier_function() {
-        let gkrr: GKRRound<Fr> = GKRRound::new_rand();
-        let random_gate = random_gate(gkrr.gate_labes());
-        let fast_prover = FastProver::new(gkrr.mult(), gkrr.vi(), gkrr.vj(), &random_gate);
+        let gkr_round: GKRRound<Fr> = GKRRound::new_rand();
+        let random_gate = random_gate(gkr_round.gate_labes());
+        let mut fast_prover = FastProver::new(gkr_round.clone(), &random_gate);
         // max degree is 5 for now, i think it should be 2.
-        let verifier = StandardVerifier::new(5, fast_prover.compute_sum());
+        let verifier = StandardVerifier::new(5, fast_prover.compute_sum(), gkr_round);
         let verifier_func = fast_prover.get_verifier_function();
         assert!(verifier.check_claimed_value(&verifier_func));
     }

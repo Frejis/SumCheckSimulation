@@ -32,12 +32,15 @@ pub trait Verifier<F: Field> {
     fn handle_round(&mut self, fx: &DenseMultilinearExtension<F>) -> F;
     
     fn set_claim(&mut self, claim: F);
+    
+    fn final_check(&self);
 }
 
+#[derive(Clone)]
 pub struct GKRRound<F: Field> {
     mult: SparseMultilinearExtension<F>,
-    vi: DenseMultilinearExtension<F>,
-    vj: DenseMultilinearExtension<F>,
+    pub(crate) vi: DenseMultilinearExtension<F>,
+    pub(crate) vj: DenseMultilinearExtension<F>,
     gate_labes: usize,
 }
 

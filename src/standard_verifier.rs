@@ -1,19 +1,21 @@
 use ark_ff::Field;
 use ark_poly::{DenseMultilinearExtension, Polynomial};
-use crate::data_structures::{Prover, Verifier};
+use crate::data_structures::{GKRRound, Prover, Verifier};
 
 pub struct StandardVerifier<F: Field> {
     random_points_chosen: Vec<F>,
     claimed_value: F,
     max_degree: usize,
+    gkr_round: GKRRound<F>,
 }
 
 impl<F: Field> StandardVerifier<F> {
-    pub fn new(max_degree: usize, claimed_value: F) -> Self {
+    pub fn new(max_degree: usize, claimed_value: F, gkr_round: GKRRound<F>) -> Self {
         StandardVerifier {
             random_points_chosen: Vec::new(),
             claimed_value,
             max_degree,
+            gkr_round,
         }
     }
 }
@@ -52,5 +54,9 @@ impl<F: Field> Verifier<F> for StandardVerifier<F> {
 
     fn set_claim(&mut self, claim: F) {
         self.claimed_value = claim;
+    }
+
+    fn final_check(&self) {
+        todo!()
     }
 }

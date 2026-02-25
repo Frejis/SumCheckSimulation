@@ -61,27 +61,42 @@ struct GKRRoundSumCheckSimulator<F: Field, P: Prover<F>, V: Verifier<F>> {
 }
 
 impl<F: Field, P: Prover<F>, V: Verifier<F>> GKRRoundSumCheckSimulator<F, P, V> {
-
     pub fn new(prover: P, verifier: V) -> Self {
+        let gkr_round = GKRRound::new_rand();
         Self {
-            gkr_round: GKRRound::new_rand(),
+            gkr_round,
             prover,
             verifier,
         }
     }
 
+    /// This simulates the entire gkr round assumes provers labels have not been fixed
+    pub fn simulate(&mut self) {
+        let rounds = 2 * self.gkr_round.gate_labes();
+        for _ in 0..rounds {
+            let claim = self.prover.compute_sum();
+            assert!(self.verifier.check_claimed_value(&self.prover.get_verifier_function()));
+            self.prover.fix_variable(self.verifier.get_random_field_element());
+        }
+        self.final_check();
+    }
+    
+    pub fn final_check(&self) {
+        self.verifier.final_check()
+    }
+}
+
+impl<F: Field> GKRRoundSumCheckSimulator<F, FastProver<F>, StandardVerifier<F>> {
     pub fn new_fast_prover_std_verifier() -> Self {
         let gkr_round = GKRRound::new_rand();
         let random_gate = random_gate(gkr_round.gate_labes());
 
         let prover = FastProver::new(
-            gkr_round.mult(),
-            gkr_round.vi(),
-            gkr_round.vj(),
+            gkr_round.clone(),
             &random_gate,
         );
 
-        let verifier = StandardVerifier::new(3, F::zero());
+        let verifier = StandardVerifier::new(3, F::zero(), gkr_round.clone());
 
         Self {
             gkr_round,
@@ -89,14 +104,24 @@ impl<F: Field, P: Prover<F>, V: Verifier<F>> GKRRoundSumCheckSimulator<F, P, V> 
             verifier,
         }
     }
+}
 
-    pub fn new_naive_prover_std_verifier() -> Self {
+impl<F: Field> GKRRoundSumCheckSimulator<F, NaiveProver<F>, StandardVerifier<F>> {
+    pub fn new_fast_prover_std_verifier() -> Self {
         let gkr_round = GKRRound::new_rand();
         let random_gate = random_gate(gkr_round.gate_labes());
+
+        let prover = NaiveProver::new(
+            gkr_round.clone(),
+            &random_gate,
+        );
+
+        let verifier = StandardVerifier::new(3, F::zero(), gkr_round.clone());
+
         Self {
-            prover: &NaiveProver::new(*gkr_round.mult(), *gkr_round.vi(), *gkr_round.vj(), random_gate),
-            verifier: &StandardVerifier::new(3, F::zero()),
             gkr_round,
+            prover,
+            verifier,
         }
     }
 }
