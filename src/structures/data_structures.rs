@@ -5,7 +5,7 @@ use rand::{Rng, RngCore};
 use ark_ff::Field;
 use ark_poly::{DenseMultilinearExtension, SparseMultilinearExtension};
 use ark_std::test_rng;
-use crate::circuit_structures::GateType;
+use crate::structures::circuit_structures::GateType;
 use crate::util::random_gkr_round_gates;
 
 pub trait SumCheckProver<F: Field> {

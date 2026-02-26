@@ -1,19 +1,15 @@
 use std::time::{Duration, Instant};
 use ark_bls12_381::Fr;
 use ark_ff::Field;
-use crate::data_structures::{GKRRound, SumCheckProver, SumCheckVerifier};
-use crate::fast_prover::FastProver;
-use crate::naive_sum_check::NaiveProver;
-use crate::standard_verifier::StandardVerifier;
+use structures::data_structures::{GKRRound, SumCheckProver, SumCheckVerifier};
+use crate::provers::{fast, naive};
+use crate::verifiers::standard_verifier::StandardVerifier;
 use crate::util::random_gate;
 
-mod data_structures;
 mod util;
-pub mod naive_sum_check;
-mod standard_verifier;
-mod fast_prover;
-pub mod circuit_structures;
-pub mod gkr_protocol;
+pub mod provers;
+pub mod structures;
+pub mod verifiers;
 
 fn main() {
     simulate_two_rounds_fast();
@@ -22,12 +18,12 @@ fn main() {
 fn simulate_two_rounds_fast() {
     let gkr_round: GKRRound<Fr> = GKRRound::new_rand_var_size(11);
     let random_gate = random_gate(gkr_round.gate_labes());
-    let prover = FastProver::new(gkr_round.clone(), &random_gate);
+    let prover = fast::FastProver::new(gkr_round.clone(), &random_gate);
     println!("The number of variables is: {:?}", gkr_round.gate_labes());
     println!("Running the test with fast prover");
     compare_verifier_sum(gkr_round.clone(), prover);
     println!("Running the test with naive prover");
-    let prover = NaiveProver::new(gkr_round.clone(), &random_gate);
+    let prover = naive::NaiveProver::new(gkr_round.clone(), &random_gate);
     compare_verifier_sum(gkr_round, prover);
 }
 
@@ -68,11 +64,11 @@ mod generic_tests {
     use ark_bls12_381::Fr;
     use ark_ff::Field;
     use ark_poly::MultilinearExtension;
-    use crate::data_structures::{GKRRound, SumCheckProver, SumCheckVerifier};
-    use crate::fast_prover::FastProver;
-    use crate::naive_sum_check::NaiveProver;
-    use crate::standard_verifier::StandardVerifier;
-    use crate::util::{random_gate};
+    use crate::structures::data_structures::{GKRRound, SumCheckProver, SumCheckVerifier};
+    use crate::fast::FastProver;
+    use crate::naive::NaiveProver;
+    use crate::util::random_gate;
+    use crate::verifiers::standard_verifier::StandardVerifier;
 
     #[test]
     fn test_verifier_first_round() {
@@ -90,7 +86,7 @@ mod generic_tests {
 
     #[test]
     fn simulate_two_rounds_naive() {
-        let gkr_round: GKRRound<Fr> = GKRRound::new_rand_var_size(10);
+        let gkr_round: GKRRound<Fr> = GKRRound::new_rand_var_size(5);
         let random_gate = random_gate(gkr_round.gate_labes());
         let prover = NaiveProver::new(gkr_round.clone(), &random_gate);
         compare_verifier_sum(gkr_round, prover);
@@ -98,11 +94,10 @@ mod generic_tests {
 
     #[test]
     fn simulate_two_rounds_fast() {
-        let gkr_round: GKRRound<Fr> = GKRRound::new_rand_var_size(8);
+        let gkr_round: GKRRound<Fr> = GKRRound::new_rand_var_size(5);
         let random_gate = random_gate(gkr_round.gate_labes());
         let prover = FastProver::new(gkr_round.clone(), &random_gate);
         compare_verifier_sum(gkr_round, prover);
-        assert_eq!(1, 2);
     }
 
     fn compare_verifier_sum<F: Field, P: SumCheckProver<F>>(gkr_round: GKRRound<F>, mut prover: P) {

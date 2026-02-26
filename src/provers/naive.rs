@@ -2,8 +2,8 @@ use std::arch::x86_64::_mm_aeskeygenassist_si128;
 use ark_ff::{Field, SqrtPrecomputation, Zero};
 use ark_poly::{DenseMultilinearExtension, MultilinearExtension, Polynomial, SparseMultilinearExtension};
 use ark_std::iterable::Iterable;
-use crate::circuit_structures::GateType;
-use crate::data_structures::{GKRRound, SumCheckProver};
+use crate::structures::circuit_structures::GateType;
+use crate::structures::data_structures::{GKRRound, SumCheckProver};
 use crate::util::index_to_field_element;
 
 pub struct NaiveProver<F: Field> {
@@ -158,8 +158,8 @@ mod tests {
     use ark_ff::{One, Zero};
     use ark_poly::MultilinearExtension;
     use ark_std::{test_rng, UniformRand};
-    use crate::data_structures::{GKRRound, SumCheckProver};
-    use crate::naive_sum_check::NaiveProver;
+    use crate::structures::data_structures::{GKRRound, SumCheckProver};
+    use crate::naive::NaiveProver;
     use crate::util;
     use crate::util::{index_to_field_element, random_gate};
 

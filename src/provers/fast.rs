@@ -2,8 +2,8 @@ use std::cmp::PartialEq;
 use ark_ff::Field;
 use ark_poly::{DenseMultilinearExtension, MultilinearExtension, Polynomial, SparseMultilinearExtension};
 use ark_std::iterable::Iterable;
-use crate::circuit_structures::GateType;
-use crate::data_structures::{GKRRound, SumCheckProver};
+use crate::structures::circuit_structures::GateType;
+use crate::structures::data_structures::{GKRRound, SumCheckProver};
 use crate::util::{index_to_field_element};
 
 pub struct FastProver<F: Field> {
@@ -228,12 +228,12 @@ mod test {
     use ark_bls12_381::Fr;
     use ark_ff::Zero;
     use ark_std::{test_rng, UniformRand};
-    use crate::circuit_structures::GateType;
-    use crate::data_structures::{GKRRound, SumCheckProver, SumCheckVerifier};
-    use crate::fast_prover::FastProver;
-    use crate::naive_sum_check::NaiveProver;
-    use crate::standard_verifier::StandardVerifier;
+    use crate::structures::circuit_structures::GateType;
+    use crate::structures::data_structures::{GKRRound, SumCheckProver, SumCheckVerifier};
+    use crate::fast::FastProver;
+    use crate::naive::NaiveProver;
     use crate::util::{random_gate, random_gkr_round_gates};
+    use crate::verifiers::standard_verifier::StandardVerifier;
 
     #[test]
     fn first_phase_sum_is_identical_to_naive() {

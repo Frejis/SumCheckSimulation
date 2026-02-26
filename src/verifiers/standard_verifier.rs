@@ -1,6 +1,6 @@
 use ark_ff::Field;
 use ark_poly::{DenseMultilinearExtension, Polynomial, SparseMultilinearExtension};
-use crate::data_structures::{GKRRound, SumCheckProver, SumCheckVerifier};
+use crate::structures::data_structures::{GKRRound, SumCheckProver, SumCheckVerifier};
 
 pub struct StandardVerifier<F: Field> {
     random_points_chosen: Vec<F>,
