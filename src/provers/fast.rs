@@ -4,7 +4,8 @@ use ark_poly::{DenseMultilinearExtension, MultilinearExtension, Polynomial, Spar
 use ark_std::iterable::Iterable;
 use crate::structures::circuit_structures::GateType;
 use crate::structures::data_structures::{GKRRound, SumCheckProver};
-use crate::util::{index_to_field_element};
+use crate::structures::layer::LayerReductionMessage;
+use crate::util::{index_to_field_element, lagrange_interpolate_coeffs, line_point};
 
 pub struct FastProver<F: Field> {
     fixed_mult: SparseMultilinearExtension<F>,
@@ -14,6 +15,7 @@ pub struct FastProver<F: Field> {
     q: Vec<F>,
     fixed_variables: Vec<F>,
     has_phase_two_been_init: bool,
+    layer_value_mle: DenseMultilinearExtension<F>,
 }
 
 impl<F: Field> FastProver<F> {
@@ -26,6 +28,7 @@ impl<F: Field> FastProver<F> {
         }
         let should_initialize_phase_one = gkr_round.vi.num_vars > 0;
         let mut temp_res = Self {
+            layer_value_mle: gkr_round.vi.clone(),
             fixed_mult: gkr_round.mult().fix_variables(&*gate), // I don't think i needed to call clone.
             p: Vec::new(),
             q: Vec::new(),
@@ -56,7 +59,8 @@ impl<F: Field> FastProver<F> {
 
     fn initialize_phase_two(&mut self) {
         match self.gkr_round.gate_type {
-            GateType::Add => { panic!() // I don't even want to bother at this point
+            GateType::Add => {
+                panic!() // I don't even want to bother at this point
                 }
             GateType::Mul => self.init_phase_two_mult(),
         }
@@ -65,11 +69,14 @@ impl<F: Field> FastProver<F> {
     fn init_phase_two_mult(&mut self) {
         let size = 1 << self.gkr_round.vj.num_vars;
         self.init_p_q_zero(size);
-        assert_eq!(self.fixed_variables.len(), self.gkr_round.vj.num_vars);
-        let fixed_mult = self.gkr_round.mult().fix_variables(&self.fixed_variables);
+        assert_eq!(self.fixed_variables.len(), self.gkr_round.vi.num_vars);
+
+        let fixed_mult = self.fixed_mult.fix_variables(&self.fixed_variables);
+        assert_eq!(fixed_mult.num_vars, self.gkr_round.vj.num_vars);
+
         let fr = self.gkr_round.vi.evaluate(&self.fixed_variables);
         for i in 0..size {
-            self.update_arrays_phase_two_mult(fixed_mult.clone(), fr, i);
+            self.update_arrays_phase_two_mult(&fixed_mult, fr, i);
         }
     }
 
@@ -78,10 +85,14 @@ impl<F: Field> FastProver<F> {
         self.q = vec![F::zero(); size];
     }
 
-    fn update_arrays_phase_two_mult(&mut self, fixed_mult: SparseMultilinearExtension<F>, fr: F, i: usize) {
+    fn update_arrays_phase_two_mult(
+        &mut self,
+        fixed_mult: &SparseMultilinearExtension<F>,
+        fr: F,
+        i: usize,
+    ) {
         let field_index: Vec<F> = index_to_field_element(i, self.gkr_round.vj.num_vars);
-        let combined_vec = Self::create_combined_vec_array(&self.fixed_variables, &field_index);
-        self.p[i] = fixed_mult.evaluate(&combined_vec);
+        self.p[i] = fixed_mult.evaluate(&field_index);
         self.q[i] = fr * self.gkr_round.vj.evaluate(&field_index);
     }
 
@@ -136,7 +147,7 @@ impl<F: Field> FastProver<F> {
 
 impl<F: Field> SumCheckProver<F> for FastProver<F> {
     fn compute_sum(&mut self) -> F { // This currently only works for the first half.
-        if self.fixed_variables.len() == self.gkr_round.vi.num_vars() + 1 && !self.has_phase_two_been_init {
+        if self.fixed_variables.len() == self.gkr_round.vi.num_vars() && !self.has_phase_two_been_init {
             // Now we have to initialize phase two.
             self.has_phase_two_been_init = true;
             self.initialize_phase_two();
@@ -171,6 +182,32 @@ impl<F: Field> SumCheckProver<F> for FastProver<F> {
             GateType::Mul => self.fix_variable_mult(r),
         }
     }
+
+    fn layer_reduction_message(&self, b_star: &[F], c_star: &[F]) -> LayerReductionMessage<F> {
+        assert_eq!(b_star.len(), c_star.len());
+
+        // q(t) has degree <= k where k = number of variables in W_{i+1}
+        let k = self.layer_value_mle.num_vars;
+        assert_eq!(k, b_star.len(), "b*/c* dimension must match W_(i+1) arity");
+
+        let mut xs = Vec::with_capacity(k + 1);
+        let mut ys = Vec::with_capacity(k + 1);
+
+        for i in 0..=k {
+            let t_i = F::from(i as u64);
+            let pt = line_point(b_star, c_star, t_i);
+            let y_i = self.layer_value_mle.evaluate(&pt);
+            xs.push(t_i);
+            ys.push(y_i);
+        }
+
+        let q_coeffs = lagrange_interpolate_coeffs(&xs, &ys);
+
+        let z1 = ys[0]; // q(0) = W(b*)
+        let z2 = ys[1]; // q(1) = W(c*)
+
+        LayerReductionMessage { z1, z2, q_coeffs }
+    }
 }
 
 
@@ -201,7 +238,7 @@ impl<F: Field> FastProver<F> {
 impl<F: Field> FastProver<F> {
     fn fix_variable_mult(&mut self, r: F) {
         let n = self.p.len();
-        assert_eq!(n % 2, 0);
+
         let half = n >> 1;
         let mut new_p = Vec::with_capacity(half);
         let mut new_q = Vec::with_capacity(half);
@@ -293,6 +330,7 @@ mod test {
     }
 
     #[test]
+    #[should_panic]
     fn test_fix_variable_same_as_naive_add_gate() {
         let mut rand = test_rng();
         let mut gkr_round: GKRRound<Fr> = GKRRound::new_rand();

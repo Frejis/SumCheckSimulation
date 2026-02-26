@@ -1,12 +1,46 @@
 use ark_ff::Field;
 use ark_poly::{DenseMultilinearExtension, Polynomial, SparseMultilinearExtension};
+use rand::Rng;
 use crate::structures::data_structures::{GKRRound, SumCheckProver, SumCheckVerifier};
+use crate::structures::layer::LayerReductionMessage;
+use crate::util::eval_univariate;
 
 pub struct StandardVerifier<F: Field> {
     random_points_chosen: Vec<F>,
     claimed_value: F,
     max_degree: usize,
     gkr_round: GKRRound<F>,
+}
+
+impl<F: Field> StandardVerifier<F> {
+    pub fn reduce_two_claims_to_one<R: rand::Rng>(
+        &self,
+        b_star: &[F],
+        c_star: &[F],
+        msg: &LayerReductionMessage<F>,
+        rng: &mut R,
+    ) -> (Vec<F>, F) {
+        let q0 = eval_univariate(&msg.q_coeffs, F::zero());
+        let q1 = eval_univariate(&msg.q_coeffs, F::one());
+        assert_eq!(q0, msg.z1, "q(0) != z1");
+        assert_eq!(q1, msg.z2, "q(1) != z2");
+
+        let r = F::rand(rng);
+        let r_next = b_star
+            .iter()
+            .zip(c_star.iter())
+            .map(|(b, c)| *b + r * (*c - *b))
+            .collect::<Vec<_>>();
+
+        let next_claim = eval_univariate(&msg.q_coeffs, r);
+        (r_next, next_claim)
+    }
+}
+
+impl<F: Field> StandardVerifier<F> {
+    pub fn random_points_chosen(&self) -> &Vec<F> {
+        &self.random_points_chosen
+    }
 }
 
 impl<F: Field> StandardVerifier<F> {

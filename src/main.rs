@@ -1,8 +1,12 @@
 use std::time::{Duration, Instant};
 use ark_bls12_381::Fr;
 use ark_ff::Field;
+use ark_std::test_rng;
 use structures::data_structures::{GKRRound, SumCheckProver, SumCheckVerifier};
 use crate::provers::{fast, naive};
+use crate::provers::naive::NaiveProver;
+use crate::structures::circuit_structures::{GKRCircuit, GateType};
+use crate::structures::gkr_protocol::GKRLayerDriver;
 use crate::verifiers::standard_verifier::StandardVerifier;
 use crate::util::random_gate;
 
@@ -16,15 +20,43 @@ fn main() {
 }
 
 fn simulate_two_rounds_fast() {
-    let gkr_round: GKRRound<Fr> = GKRRound::new_rand_var_size(11);
-    let random_gate = random_gate(gkr_round.gate_labes());
-    let prover = fast::FastProver::new(gkr_round.clone(), &random_gate);
-    println!("The number of variables is: {:?}", gkr_round.gate_labes());
-    println!("Running the test with fast prover");
-    compare_verifier_sum(gkr_round.clone(), prover);
-    println!("Running the test with naive prover");
-    let prover = naive::NaiveProver::new(gkr_round.clone(), &random_gate);
-    compare_verifier_sum(gkr_round, prover);
+    let circuit: GKRCircuit<Fr> = GKRCircuit::random(&[1, 2, 4, 8], &mut test_rng());
+
+    let (naive_prove_time, verifier_naive_time) =
+        GKRLayerDriver::simulate_gkr_circuit::<Fr, NaiveProver<Fr>, _>(
+            circuit.clone(),
+            |round_i, current_r| NaiveProver::new(round_i, &current_r),
+        );
+
+    let (fast_prove_time, verifier_fast_time) =
+        GKRLayerDriver::simulate_gkr_circuit::<Fr, fast::FastProver<Fr>, _>(
+            circuit,
+            |round_i, current_r| fast::FastProver::new(round_i, &current_r),
+        );
+
+    println!("Naive Prover time: {:?}", naive_prove_time);
+    println!("Fast Prover time: {:?}", fast_prove_time);
+    println!("Naive Verifier time: {:?}", verifier_naive_time);
+    println!("Fast Verifier time: {:?}", verifier_fast_time);
+}
+
+fn get_round_information(circuit: &GKRCircuit<Fr>, i: &usize) -> (usize, GKRRound<Fr>) {
+    fn log2_pow2(n: usize) -> usize {
+        assert!(n.is_power_of_two());
+        n.trailing_zeros() as usize
+    }
+
+    let layer_i = &circuit.layers[*i];
+    let layer_next = &circuit.layers[*i + 1];
+
+    let k_i = log2_pow2(layer_i.values.len());
+    let k_next = log2_pow2(layer_next.values.len());
+
+    let (_add_i, mult_i) = layer_i.wiring_predicates(k_i, k_next);
+    let w_next = layer_next.value_extension(k_next);
+
+    let round_i = GKRRound::new(&mult_i, &w_next, &w_next, &GateType::Mul);
+    (k_next, round_i)
 }
 
 fn compare_verifier_sum<F: Field, P: SumCheckProver<F>>(gkr_round: GKRRound<F>, mut prover: P) {

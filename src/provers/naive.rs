@@ -4,11 +4,13 @@ use ark_poly::{DenseMultilinearExtension, MultilinearExtension, Polynomial, Spar
 use ark_std::iterable::Iterable;
 use crate::structures::circuit_structures::GateType;
 use crate::structures::data_structures::{GKRRound, SumCheckProver};
-use crate::util::index_to_field_element;
+use crate::structures::layer::LayerReductionMessage;
+use crate::util::{index_to_field_element, lagrange_interpolate_coeffs, line_point};
 
 pub struct NaiveProver<F: Field> {
     gkr_round: GKRRound<F>,
     fixed_mult: SparseMultilinearExtension<F>,
+    layer_value_mle: DenseMultilinearExtension<F>,
 }
 
 impl<F: Field> NaiveProver<F> {
@@ -16,13 +18,14 @@ impl<F: Field> NaiveProver<F> {
         gkr_round: GKRRound<F>,
         gate: &Vec<F>,
     ) -> NaiveProver<F> {
-        assert_eq!(gkr_round.mult().num_vars, gkr_round.vi().num_vars * 3);
-        assert_eq!(gkr_round.mult().num_vars, gkr_round.vj().num_vars * 3);
-        assert_eq!(gate.len(), gkr_round.gate_labes());
+        //assert_eq!(gkr_round.mult().num_vars, gkr_round.vi().num_vars * 3);
+        //assert_eq!(gkr_round.mult().num_vars, gkr_round.vj().num_vars * 3);
+        //assert_eq!(gate.len(), gkr_round.gate_labes());
         let fixed_mult = gkr_round.mult().fix_variables(gate);
         NaiveProver {
+            layer_value_mle: gkr_round.vi.clone(),
             gkr_round,
-            fixed_mult
+            fixed_mult,
         }
     }
 
@@ -150,6 +153,32 @@ impl<F: Field> SumCheckProver<F> for NaiveProver<F> {
         } else {
             self.gkr_round.vj = self.gkr_round.vj.fix_variables(field_packed);
         }
+    }
+
+    fn layer_reduction_message(&self, b_star: &[F], c_star: &[F]) -> LayerReductionMessage<F> {
+        assert_eq!(b_star.len(), c_star.len());
+
+        // q(t) has degree <= k where k = number of variables in W_{i+1}
+        let k = self.layer_value_mle.num_vars;
+        assert_eq!(k, b_star.len(), "b*/c* dimension must match W_(i+1) arity");
+
+        let mut xs = Vec::with_capacity(k + 1);
+        let mut ys = Vec::with_capacity(k + 1);
+
+        for i in 0..=k {
+            let t_i = F::from(i as u64);
+            let pt = line_point(b_star, c_star, t_i);
+            let y_i = self.layer_value_mle.evaluate(&pt);
+            xs.push(t_i);
+            ys.push(y_i);
+        }
+
+        let q_coeffs = lagrange_interpolate_coeffs(&xs, &ys);
+
+        let z1 = ys[0]; // q(0) = W(b*)
+        let z2 = ys[1]; // q(1) = W(c*)
+
+        LayerReductionMessage { z1, z2, q_coeffs }
     }
 }
 

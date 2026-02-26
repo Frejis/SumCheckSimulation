@@ -41,3 +41,65 @@ pub fn random_gate<F: Field>(label_length: usize) -> Vec<F> {
     }
     res
 }
+
+
+pub fn line_point<F: Field>(b_star: &[F], c_star: &[F], t: F) -> Vec<F> {
+    b_star
+        .iter()
+        .zip(c_star.iter())
+        .map(|(b, c)| *b + t * (*c - *b))
+        .collect()
+}
+
+pub fn poly_add_assign<F: Field>(lhs: &mut Vec<F>, rhs: &[F]) {
+    if lhs.len() < rhs.len() {
+        lhs.resize(rhs.len(), F::zero());
+    }
+    for (i, coeff) in rhs.iter().enumerate() {
+        lhs[i] += *coeff;
+    }
+}
+
+/// Multiply polynomial by (c0 + c1*x), coefficient form.
+pub fn poly_mul_linear<F: Field>(poly: &[F], c0: F, c1: F) -> Vec<F> {
+    let mut out = vec![F::zero(); poly.len() + 1];
+    for (i, a) in poly.iter().enumerate() {
+        out[i] += *a * c0;
+        out[i + 1] += *a * c1;
+    }
+    out
+}
+
+/// Interpolate polynomial coefficients from samples (x_i, y_i) using Lagrange basis.
+pub fn lagrange_interpolate_coeffs<F: Field>(xs: &[F], ys: &[F]) -> Vec<F> {
+    assert_eq!(xs.len(), ys.len());
+    let n = xs.len();
+    let mut result = vec![F::zero(); n];
+
+    for i in 0..n {
+        // basis numerator: prod_{j != i} (x - x_j)
+        let mut basis = vec![F::one()];
+        let mut denom = F::one();
+
+        for j in 0..n {
+            if i == j {
+                continue;
+            }
+            basis = poly_mul_linear(&basis, -xs[j], F::one());
+            denom *= xs[i] - xs[j];
+        }
+
+        let inv = denom.inverse().expect("distinct interpolation points required");
+        let scale = ys[i] * inv;
+        for coeff in basis.iter_mut() {
+            *coeff *= scale;
+        }
+        poly_add_assign(&mut result, &basis);
+    }
+
+    result
+}
+
+pub fn eval_univariate<F: Field>(coeffs: &[F], x: F) -> F {
+    coeffs.iter().rev().fold(F::zero(), |acc, c| acc * x + c)
+}

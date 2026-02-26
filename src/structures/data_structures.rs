@@ -6,6 +6,7 @@ use ark_ff::Field;
 use ark_poly::{DenseMultilinearExtension, SparseMultilinearExtension};
 use ark_std::test_rng;
 use crate::structures::circuit_structures::GateType;
+use crate::structures::layer::LayerReductionMessage;
 use crate::util::random_gkr_round_gates;
 
 pub trait SumCheckProver<F: Field> {
@@ -17,6 +18,7 @@ pub trait SumCheckProver<F: Field> {
 
     fn fix_variable(&mut self, random_field_element: F);
 
+    fn layer_reduction_message(&self, b_star: &[F], c_star: &[F]) -> LayerReductionMessage<F>;
 }
 
 pub trait SumCheckVerifier<F: Field> {

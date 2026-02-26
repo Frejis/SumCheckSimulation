@@ -10,7 +10,7 @@ pub enum GateType {
 }
 
 /// A gate at one layer, referencing children at the next layer.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Gate {
     left: usize,
     right: usize,
@@ -18,10 +18,12 @@ pub struct Gate {
 }
 
 /// A layered arithmetic circuit.
-pub struct GkrCircuit<F: Field> {
+#[derive(Clone, Debug)]
+pub struct GKRCircuit<F: Field> {
     pub layers: Vec<Layer<F>>,
 }
 
+#[derive(Clone, Debug)]
 pub struct Layer<F: Field> {
     /// Gate wiring for this layer (size = 2^{k_i}).
     pub gates: Vec<Gate>,
@@ -29,7 +31,7 @@ pub struct Layer<F: Field> {
     pub values: Vec<F>,
 }
 
-impl<F: Field> GkrCircuit<F> {
+impl<F: Field> GKRCircuit<F> {
     /// Generate a random layered circuit with the given sizes.
     /// Each element of `layer_sizes` must be a power of 2.
     pub fn random<R: Rng>(layer_sizes: &[usize], rng: &mut R) -> Self {
@@ -53,7 +55,7 @@ impl<F: Field> GkrCircuit<F> {
                 let left = rng.gen_range(0..next_size);
                 let right = rng.gen_range(0..next_size);
                 let typ = if rng.r#gen::<bool>() {
-                    GateType::Add
+                    GateType::Mul // TODO make fast prover work with add.
                 } else {
                     GateType::Mul
                 };
@@ -91,9 +93,12 @@ impl<F: Field> Layer<F> {
 
         // Each gate corresponds to exactly one location in the hypercube.
         for (gate_idx, gate) in self.gates.iter().enumerate() {
-            // Combined index over bits (x,b,c) for this wiring triple
+            // Variable order must match prover fixing order:
+            // first x bits, then b bits, then c bits.
+            // Since index_to_field_element is little-endian (LSB = first variable),
+            // x must be in the LOW bits.
             let combined_index =
-                (gate_idx << (2 * k_child)) | (gate.left << k_child) | gate.right;
+                gate_idx | (gate.left << k_x) | (gate.right << (k_x + k_child));
             match gate.typ {
                 GateType::Add => add_terms.push((combined_index, F::one())),
                 GateType::Mul => mul_terms.push((combined_index, F::one())),
