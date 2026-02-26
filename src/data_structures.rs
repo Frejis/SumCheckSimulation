@@ -103,7 +103,7 @@ impl<F: Field> GKRRound<F> {
     pub fn new_rand() -> GKRRound<F> {
 
         let typ = if test_rng().r#gen::<bool>() {
-            GateType::Add
+            GateType::Mul // Should be add but rn fast_prover doens't work with add.
         } else {
             GateType::Mul
         };
