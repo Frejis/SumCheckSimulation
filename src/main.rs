@@ -1,5 +1,5 @@
 use ark_bls12_381::Fr;
-use crate::data_structures::{GKRRound, Prover, Verifier};
+use crate::data_structures::{GKRRound, SumCheckProver, SumCheckVerifier};
 use crate::naive_sum_check::NaiveProver;
 use crate::standard_verifier::StandardVerifier;
 use crate::util::random_gate;
@@ -10,6 +10,8 @@ pub mod naive_sum_check;
 mod standard_verifier;
 mod fast_prover;
 pub mod circuit_structures;
+pub mod prover;
+pub mod gkr_protocol;
 
 fn main() {
     println!("Hello, world!");
@@ -28,7 +30,10 @@ fn main() {
 
 mod generic_tests {
     use ark_bls12_381::Fr;
-    use crate::data_structures::{GKRRound, Prover, Verifier};
+    use ark_std::test_rng;
+    use blake2::digest::typenum::private::IsGreaterOrEqualPrivate;
+    use crate::circuit_structures::GkrCircuit;
+    use crate::data_structures::{GKRRound, SumCheckProver, SumCheckVerifier};
     use crate::naive_sum_check::NaiveProver;
     use crate::standard_verifier::StandardVerifier;
     use crate::util::{random_gate};
@@ -65,5 +70,11 @@ mod generic_tests {
         verifier.set_claim(new_claim);
         let snd_verifier_func = prover.get_verifier_function();
         assert!(verifier.check_claimed_value(&snd_verifier_func));
+    }
+
+    #[test]
+    fn mult_circuit_simulation() {
+        let circuit: GkrCircuit<Fr> = GkrCircuit::random(&[1, 2, 4, 8, 16], &mut test_rng());
+        todo!()
     }
 }

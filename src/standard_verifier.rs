@@ -1,6 +1,7 @@
-use ark_ff::Field;
+use ark_ff::{Field, One, Zero};
 use ark_poly::{DenseMultilinearExtension, Polynomial};
-use crate::data_structures::{GKRRound, Prover, Verifier};
+use crate::data_structures::{GKRRound, LayerReductionMessage, SumCheckProver, SumCheckVerifier};
+use crate::util::index_to_field_element;
 
 pub struct StandardVerifier<F: Field> {
     random_points_chosen: Vec<F>,
@@ -18,9 +19,40 @@ impl<F: Field> StandardVerifier<F> {
             gkr_round,
         }
     }
+
+    pub fn sampled_points(&self) -> &[F] {
+        &self.random_points_chosen
+    }
+
+    fn eval_univariate(coeffs: &[F], x: F) -> F {
+        coeffs.iter().rev().fold(F::zero(), |acc, c| acc * x + c)
+    }
+
+    pub fn reduce_two_claims_to_one<R: rand::Rng>(
+        &self,
+        b_star: &[F],
+        c_star: &[F],
+        msg: &LayerReductionMessage<F>,
+        rng: &mut R,
+    ) -> (Vec<F>, F) {
+        let q0 = Self::eval_univariate(&msg.q_coeffs, F::zero());
+        let q1 = Self::eval_univariate(&msg.q_coeffs, F::one());
+        assert_eq!(q0, msg.z1, "q(0) != z1");
+        assert_eq!(q1, msg.z2, "q(1) != z2");
+
+        let r = F::rand(rng);
+        let r_next = b_star
+            .iter()
+            .zip(c_star.iter())
+            .map(|(b, c)| *b + r * (*c - *b))
+            .collect::<Vec<_>>();
+
+        let next_claim = Self::eval_univariate(&msg.q_coeffs, r);
+        (r_next, next_claim)
+    }
 }
 
-impl<F: Field> Verifier<F> for StandardVerifier<F> {
+impl<F: Field> SumCheckVerifier<F> for StandardVerifier<F> {
     fn verify_degree(&self, fx: &DenseMultilinearExtension<F>) -> bool {
         fx.degree() < self.max_degree
     }

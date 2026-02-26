@@ -2,7 +2,8 @@ use std::cmp::PartialEq;
 use ark_ff::Field;
 use ark_poly::{DenseMultilinearExtension, MultilinearExtension, Polynomial, SparseMultilinearExtension};
 use crate::circuit_structures::GateType;
-use crate::data_structures::{GKRRound, Prover};
+use crate::data_structures::{GKRRound, LayerReductionMessage, SumCheckProver};
+use crate::gkr_protocol::LayerReductionOracle;
 use crate::util::{index_to_field_element};
 
 pub struct FastProver<F: Field> {
@@ -13,6 +14,7 @@ pub struct FastProver<F: Field> {
     q: Vec<F>,
     fixed_variables: Vec<F>,
     has_phase_two_been_init: bool,
+    layer_value_mle: DenseMultilinearExtension<F>,
 }
 
 impl<F: Field> FastProver<F> {
@@ -25,6 +27,7 @@ impl<F: Field> FastProver<F> {
         }
         let should_initialize_phase_one = gkr_round.vi.num_vars > 0;
         let mut temp_res = Self {
+            layer_value_mle: gkr_round.vi.clone(),
             fixed_mult: gkr_round.mult().fix_variables(&*gate), // I don't think i needed to call clone.
             p: Vec::new(),
             q: Vec::new(),
@@ -133,7 +136,7 @@ impl<F: Field> FastProver<F> {
     }
 }
 
-impl<F: Field> Prover<F> for FastProver<F> {
+impl<F: Field> SumCheckProver<F> for FastProver<F> {
     fn compute_sum(&mut self) -> F { // This currently only works for the first half.
         if self.fixed_variables.len() == self.gkr_round.vi.num_vars() + 1 && !self.has_phase_two_been_init {
             // Now we have to initialize phase two.
@@ -169,6 +172,14 @@ impl<F: Field> Prover<F> for FastProver<F> {
             GateType::Add => self.fix_variable_add(r), // This was more like a sanity check.
             GateType::Mul => self.fix_variable_mult(r),
         }
+    }
+
+    fn compute_z_1(&mut self) -> F {
+        todo!()
+    }
+
+    fn compute_z_2(&mut self) -> F {
+        todo!()
     }
 }
 
@@ -228,7 +239,7 @@ mod test {
     use ark_ff::Zero;
     use ark_std::{test_rng, UniformRand};
     use crate::circuit_structures::GateType;
-    use crate::data_structures::{GKRRound, Prover, Verifier};
+    use crate::data_structures::{GKRRound, SumCheckProver, SumCheckVerifier};
     use crate::fast_prover::FastProver;
     use crate::naive_sum_check::NaiveProver;
     use crate::standard_verifier::StandardVerifier;

@@ -8,7 +8,7 @@ use ark_std::test_rng;
 use crate::circuit_structures::GateType;
 use crate::util::random_gkr_round_gates;
 
-pub trait Prover<F: Field> {
+pub trait SumCheckProver<F: Field> {
     // Computes the sum so we can have an alleged claim of the functions.
     fn compute_sum(&mut self) -> F;
 
@@ -17,9 +17,11 @@ pub trait Prover<F: Field> {
 
     fn fix_variable(&mut self, random_field_element: F);
 
+    fn compute_z_1(&mut self) -> F;
+    fn compute_z_2(&mut self) -> F;
 }
 
-pub trait Verifier<F: Field> {
+pub trait SumCheckVerifier<F: Field> {
     // Has to check the degree of the function to ensure no one cheats.
     fn verify_degree(&self, fx: &DenseMultilinearExtension<F>) -> bool;
 
@@ -36,6 +38,13 @@ pub trait Verifier<F: Field> {
     fn set_claim(&mut self, claim: F);
 
     fn final_check(&self);
+}
+
+#[derive(Clone, Debug)]
+pub struct LayerReductionMessage<F: Field> {
+    pub z1: F,            // W(b*)
+    pub z2: F,            // W(c*)
+    pub q_coeffs: Vec<F>, // coefficients of q(t) = W(b* + t(c* - b*))
 }
 
 #[derive(Clone)]
@@ -63,6 +72,10 @@ impl<F: Field> GKRRound<F> {
     pub fn set_gate_labes(&mut self, gate_labes: usize) {
         self.gate_labes = gate_labes;
     }
+    
+    pub fn set_gate_type(&mut self, gate_type: GateType) {
+        self.gate_type = gate_type;
+    }
 }
 
 impl<F: Field> GKRRound<F> {
@@ -80,6 +93,14 @@ impl<F: Field> GKRRound<F> {
 
     pub fn gate_labes(&self) -> usize {
         self.gate_labes
+    }
+    
+    pub fn get_gate_type(&self) -> GateType {
+        self.gate_type.clone()
+    }
+    
+    pub fn get_gate() -> Vec<F> {
+        todo!();
     }
 }
 

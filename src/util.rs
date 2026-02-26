@@ -2,7 +2,7 @@ use ark_ff::Field;
 use ark_poly::{DenseMultilinearExtension, MultilinearExtension, SparseMultilinearExtension};
 use ark_std::rand::RngCore;
 use ark_std::test_rng;
-use crate::data_structures::{GKRRound, Prover, Verifier};
+use crate::data_structures::{GKRRound, SumCheckProver, SumCheckVerifier};
 use crate::fast_prover::FastProver;
 use crate::naive_sum_check::NaiveProver;
 use crate::standard_verifier::StandardVerifier;
@@ -54,13 +54,13 @@ pub fn random_gate<F: Field>(label_length: usize) -> Vec<F> {
 }
 
 
-struct GKRRoundSumCheckSimulator<F: Field, P: Prover<F>, V: Verifier<F>> {
+struct GKRRoundSumCheckSimulator<F: Field, P: SumCheckProver<F>, V: SumCheckVerifier<F>> {
     gkr_round: GKRRound<F>,
     prover: P,
     verifier: V,
 }
 
-impl<F: Field, P: Prover<F>, V: Verifier<F>> GKRRoundSumCheckSimulator<F, P, V> {
+impl<F: Field, P: SumCheckProver<F>, V: SumCheckVerifier<F>> GKRRoundSumCheckSimulator<F, P, V> {
     pub fn new(prover: P, verifier: V) -> Self {
         let gkr_round = GKRRound::new_rand();
         Self {

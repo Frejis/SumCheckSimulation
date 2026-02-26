@@ -53,7 +53,7 @@ impl<F: Field> GkrCircuit<F> {
                 let left = rng.gen_range(0..next_size);
                 let right = rng.gen_range(0..next_size);
                 let typ = if rng.r#gen::<bool>() {
-                    GateType::Add
+                    GateType::Mul // TODO fix fast prover not working with GateType::Add
                 } else {
                     GateType::Mul
                 };
@@ -91,9 +91,12 @@ impl<F: Field> Layer<F> {
 
         // Each gate corresponds to exactly one location in the hypercube.
         for (gate_idx, gate) in self.gates.iter().enumerate() {
-            // Combined index over bits (x,b,c) for this wiring triple
+            // IMPORTANT:
+            // index_to_field_element() is LSB-first.
+            // Variable order is (x, b, c), so x occupies the lowest k_x bits.
             let combined_index =
-                (gate_idx << (2 * k_child)) | (gate.left << k_child) | gate.right;
+                gate_idx | (gate.left << k_x) | (gate.right << (k_x + k_child));
+
             match gate.typ {
                 GateType::Add => add_terms.push((combined_index, F::one())),
                 GateType::Mul => mul_terms.push((combined_index, F::one())),
