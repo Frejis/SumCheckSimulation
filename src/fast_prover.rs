@@ -18,6 +18,9 @@ impl<F: Field> FastProver<F> {
         gkr_round: GKRRound<F>,
         gate: &Vec<F>,
     ) -> Self {
+        if gkr_round.gate_type == GateType::Add {
+            panic!();
+        }
         let should_initialize_phase_one = gkr_round.vi.num_vars > 0;
         let mut temp_res = Self {
             fixed_mult: gkr_round.mult().fix_variables(&*gate), // I don't think i needed to call clone.
@@ -40,29 +43,60 @@ impl<F: Field> FastProver<F> {
     }
 
     fn initialize_phase_one(&mut self) {
-        let first_half = self.gkr_round.vi().num_vars;
+        match self.gkr_round.gate_type {
+            GateType::Add => self.init_phase_one_add(),
+            GateType::Mul => self.init_phase_one_mult()
+        }
+    }
 
-        for i in 0..(1 << first_half) {
+    fn init_phase_one_add(&mut self) {
+        let first_half = self.gkr_round.vi().num_vars;
+        let second_half = self.gkr_round.vj().num_vars;
+        let size = 1 << first_half;
+
+        self.p = vec![F::zero(); size];
+        self.q = vec![F::zero(); size];
+
+        for i in 0..size {
             let i_index = index_to_field_element(i, first_half);
-            self.q.push(self.gkr_round.vi().evaluate(&i_index));
-            // now do the sum for j.
-            for j in 0..(1 << self.gkr_round.vj().num_vars) {
-                let j_index = index_to_field_element(j, self.gkr_round.vj().num_vars);
+            let vi_val = self.gkr_round.vi().evaluate(&i_index);
+
+            for j in 0..(1 << second_half) {
+                let j_index = index_to_field_element(j, second_half);
                 let vj_value = self.gkr_round.vj().evaluate(&j_index);
 
                 let combined_vec = Self::create_combined_vec_array(&i_index, &j_index);
-
                 let mult_val = self.fixed_mult.evaluate(&combined_vec);
-                let res = mult_val * vj_value;
-                if self.p.len() < (1 << first_half) {
-                    self.p.push(res);
-                } else {
-                    self.p[i] += res;
-                }
+
+                self.p[i] += mult_val * (vj_value + vi_val);
             }
         }
     }
 
+    fn init_phase_one_mult(&mut self) {
+        let first_half = self.gkr_round.vi().num_vars;
+        let second_half = self.gkr_round.vj().num_vars;
+        let size = 1 << first_half;
+
+        self.p = vec![F::zero(); size];
+        self.q = vec![F::zero(); size];
+
+        for i in 0..size {
+            let i_index = index_to_field_element(i, first_half);
+            let vi_val = self.gkr_round.vi().evaluate(&i_index);
+            self.q[i] = vi_val;
+
+            for j in 0..(1 << second_half) {
+                let j_index = index_to_field_element(j, second_half);
+                let vj_value = self.gkr_round.vj().evaluate(&j_index);
+
+                let combined_vec = Self::create_combined_vec_array(&i_index, &j_index);
+                let mult_val = self.fixed_mult.evaluate(&combined_vec);
+
+                self.p[i] += mult_val * vj_value;
+            }
+        }
+    }
 }
 
 impl<F: Field> Prover<F> for FastProver<F> {
@@ -70,7 +104,7 @@ impl<F: Field> Prover<F> for FastProver<F> {
         let mut sum = F::zero();
         for i in 0..self.p.len() {
             match self.gkr_round.gate_type {
-                GateType::Add => sum += self.p[i] + self.q[i],
+                GateType::Add => sum += self.p[i],
                 GateType::Mul => sum += self.p[i] * self.q[i],
             }
         }
@@ -83,7 +117,7 @@ impl<F: Field> Prover<F> for FastProver<F> {
         for mask in 0..self.p.len() {
             let value = match self.gkr_round.gate_type {
                 GateType::Mul => self.p[mask] * self.q[mask],
-                GateType::Add => self.p[mask] + self.q[mask],
+                GateType::Add => self.p[mask],
             };
             if mask & 1 == 0 { s0 += value; }
             else { s1 += value; } }
@@ -91,6 +125,40 @@ impl<F: Field> Prover<F> for FastProver<F> {
     }
 
     fn fix_variable(&mut self, r: F) {
+        match self.gkr_round.gate_type {
+            GateType::Add => self.fix_variable_add(r), // This was more like a sanity check.
+            GateType::Mul => self.fix_variable_mult(r),
+        }
+    }
+}
+
+
+impl<F: Field> FastProver<F> {
+    fn fix_variable_add(&mut self, r: F) {
+        let n = self.p.len();
+        assert_eq!(n % 2, 0);
+        let half = n >> 1;
+        let mut new_p = Vec::with_capacity(half);
+        let mut new_q = Vec::with_capacity(half);
+
+        for i in 0..half {
+
+            let index_0 = i << 1;
+            let index_1 = index_0 | 1;
+            let a_0 = self.p[index_0];
+            let a_1 = self.p[index_1];
+
+            new_p.push(a_0 + r * (a_1 - a_0));
+            new_q.push(F::zero());
+        }
+
+        self.p = new_p;
+        self.q = new_q;
+    }
+}
+
+impl<F: Field> FastProver<F> {
+    fn fix_variable_mult(&mut self, r: F) {
         let n = self.p.len();
         assert_eq!(n % 2, 0);
         let half = n >> 1;
@@ -128,8 +196,7 @@ mod test {
 
     #[test]
     fn first_phase_sum_is_identical_to_naive() {
-        let mut gkr_round: GKRRound<Fr> = GKRRound::new_rand();
-        gkr_round.gate_type = GateType::Mul;
+        let gkr_round: GKRRound<Fr> = GKRRound::new_rand();
         let random_gate = random_gate(gkr_round.gate_labes());
         let fast_prover = FastProver::new(gkr_round.clone(), &random_gate);
 
@@ -164,11 +231,34 @@ mod test {
     }
 
     #[test]
-    fn test_fix_variable_same_as_naive() {
+    fn test_fix_variable_same_as_naive_mult_gate() {
         let mut rand = test_rng();
         let mut gkr_round: GKRRound<Fr> = GKRRound::new_rand();
         gkr_round.gate_type = GateType::Mul;
         let random_gate = random_gate(gkr_round.gate_labes());
+        let mut fast_prover = FastProver::new(gkr_round.clone(), &random_gate);
+
+        let mut naive_prover = NaiveProver::new(gkr_round, &random_gate);
+
+        let r_field = Fr::rand(&mut rand);
+
+        fast_prover.fix_variable(r_field);
+        naive_prover.fix_variable(r_field);
+        let fast_sum = fast_prover.compute_sum();
+        let naive_sum = naive_prover.compute_sum();
+        assert_eq!(fast_sum, naive_sum);
+    }
+
+    #[test]
+    fn test_fix_variable_same_as_naive_add_gate() {
+        let mut rand = test_rng();
+        let mut gkr_round: GKRRound<Fr> = GKRRound::new_rand();
+        gkr_round.gate_type = GateType::Add;
+
+
+        //let random_gate = random_gate(gkr_round.gate_labes());
+        let random_gate = vec![Fr::zero(); gkr_round.gate_labes()];
+
         let mut fast_prover = FastProver::new(gkr_round.clone(), &random_gate);
 
         let mut naive_prover = NaiveProver::new(gkr_round, &random_gate);
