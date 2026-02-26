@@ -1,8 +1,9 @@
 use std::cmp::PartialEq;
 use ark_ff::Field;
 use ark_poly::{DenseMultilinearExtension, MultilinearExtension, Polynomial, SparseMultilinearExtension};
+use ark_std::iterable::Iterable;
 use crate::circuit_structures::GateType;
-use crate::data_structures::{GKRRound, Prover};
+use crate::data_structures::{GKRRound, SumCheckProver};
 use crate::util::{index_to_field_element};
 
 pub struct FastProver<F: Field> {
@@ -133,7 +134,7 @@ impl<F: Field> FastProver<F> {
     }
 }
 
-impl<F: Field> Prover<F> for FastProver<F> {
+impl<F: Field> SumCheckProver<F> for FastProver<F> {
     fn compute_sum(&mut self) -> F { // This currently only works for the first half.
         if self.fixed_variables.len() == self.gkr_round.vi.num_vars() + 1 && !self.has_phase_two_been_init {
             // Now we have to initialize phase two.
@@ -150,7 +151,7 @@ impl<F: Field> Prover<F> for FastProver<F> {
         sum
     }
 
-    fn get_verifier_function(&self) -> DenseMultilinearExtension<F> {
+    fn get_verifier_function(&self) -> SparseMultilinearExtension<F> {
         let mut s0 = F::zero();
         let mut s1 = F::zero();
         for mask in 0..self.p.len() {
@@ -160,7 +161,7 @@ impl<F: Field> Prover<F> for FastProver<F> {
             };
             if mask & 1 == 0 { s0 += value; }
             else { s1 += value; } }
-        DenseMultilinearExtension::from_evaluations_vec(1, vec![s0, s1])
+        SparseMultilinearExtension::from_evaluations(1, vec![&(0, s0), &(1, s1)])
     }
 
     fn fix_variable(&mut self, r: F) {
@@ -228,7 +229,7 @@ mod test {
     use ark_ff::Zero;
     use ark_std::{test_rng, UniformRand};
     use crate::circuit_structures::GateType;
-    use crate::data_structures::{GKRRound, Prover, Verifier};
+    use crate::data_structures::{GKRRound, SumCheckProver, SumCheckVerifier};
     use crate::fast_prover::FastProver;
     use crate::naive_sum_check::NaiveProver;
     use crate::standard_verifier::StandardVerifier;

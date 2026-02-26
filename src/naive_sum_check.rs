@@ -3,7 +3,7 @@ use ark_ff::{Field, SqrtPrecomputation, Zero};
 use ark_poly::{DenseMultilinearExtension, MultilinearExtension, Polynomial, SparseMultilinearExtension};
 use ark_std::iterable::Iterable;
 use crate::circuit_structures::GateType;
-use crate::data_structures::{GKRRound, Prover};
+use crate::data_structures::{GKRRound, SumCheckProver};
 use crate::util::index_to_field_element;
 
 pub struct NaiveProver<F: Field> {
@@ -104,13 +104,13 @@ impl<F: Field> NaiveProver<F> {
     }
 }
 
-impl<F: Field> Prover<F> for NaiveProver<F> {
+impl<F: Field> SumCheckProver<F> for NaiveProver<F> {
     // Needs to be refactored just my last sumcheck which i know works.
     fn compute_sum(&mut self) -> F {
         self.calculate_sum_naive()
     }
 
-    fn get_verifier_function(&self) -> DenseMultilinearExtension<F> {
+    fn get_verifier_function(&self) -> SparseMultilinearExtension<F> {
         // clone existing functions.
         /*
         Iterate over all possible assignments of the bits.
@@ -135,7 +135,7 @@ impl<F: Field> Prover<F> for NaiveProver<F> {
             }
         }
 
-        DenseMultilinearExtension::from_evaluations_vec(1, vec![s0, s1])
+        SparseMultilinearExtension::from_evaluations(1, vec![&(0, s0), &(1, s1)])
     }
 
     fn fix_variable(&mut self, random_field_element: F) {
@@ -158,7 +158,7 @@ mod tests {
     use ark_ff::{One, Zero};
     use ark_poly::MultilinearExtension;
     use ark_std::{test_rng, UniformRand};
-    use crate::data_structures::{GKRRound, Prover};
+    use crate::data_structures::{GKRRound, SumCheckProver};
     use crate::naive_sum_check::NaiveProver;
     use crate::util;
     use crate::util::{index_to_field_element, random_gate};
@@ -185,7 +185,7 @@ mod tests {
         let verifier_func = prover.get_verifier_function();
         // now we evaluate this function at Fr::zero() and Fr::one() and it has to be equal to the sum it claims.
         // Just as the verifier would do.
-        let verifier_sum = verifier_func.evaluations[0] + verifier_func.evaluations[1];
+        let verifier_sum = verifier_func.evaluations.iter().map(|(_, &v)| v).sum();
         let claimed_sum = prover.compute_sum();
         assert_eq!(claimed_sum, verifier_sum);
     }

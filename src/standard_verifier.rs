@@ -1,6 +1,6 @@
 use ark_ff::Field;
-use ark_poly::{DenseMultilinearExtension, Polynomial};
-use crate::data_structures::{GKRRound, Prover, Verifier};
+use ark_poly::{DenseMultilinearExtension, Polynomial, SparseMultilinearExtension};
+use crate::data_structures::{GKRRound, SumCheckProver, SumCheckVerifier};
 
 pub struct StandardVerifier<F: Field> {
     random_points_chosen: Vec<F>,
@@ -20,8 +20,8 @@ impl<F: Field> StandardVerifier<F> {
     }
 }
 
-impl<F: Field> Verifier<F> for StandardVerifier<F> {
-    fn verify_degree(&self, fx: &DenseMultilinearExtension<F>) -> bool {
+impl<F: Field> SumCheckVerifier<F> for StandardVerifier<F> {
+    fn verify_degree(&self, fx: &SparseMultilinearExtension<F>) -> bool {
         fx.degree() < self.max_degree
     }
 
@@ -35,14 +35,13 @@ impl<F: Field> Verifier<F> for StandardVerifier<F> {
         rand_element
     }
 
-    fn check_claimed_value(&self, gx: &DenseMultilinearExtension<F>) -> bool {
-        let checked_claim = gx.evaluations[0] + gx.evaluations[1];
+    fn check_claimed_value(&self, gx: &SparseMultilinearExtension<F>) -> bool {
+        let checked_claim: F = gx.evaluations.iter().map(|(_, &v)| v).sum();
         let res = checked_claim == self.claimed_value;
-        println!("Claimed value {res} is correct.");
         res
     }
 
-    fn handle_round(&mut self, fx: &DenseMultilinearExtension<F>) -> F {
+    fn handle_round(&mut self, fx: &SparseMultilinearExtension<F>) -> F {
         if !self.verify_degree(fx) {
             panic!()
         }
