@@ -63,20 +63,25 @@ impl<F: Field> FastProver<F> {
 
     fn init_phase_two_mult(&mut self) {
         let size = 1 << self.gkr_round.vj.num_vars;
-        self.p = vec![F::zero(); size];
-        self.q = vec![F::zero(); size];
-
+        self.init_p_q_zero(size);
         assert_eq!(self.fixed_variables.len(), self.gkr_round.vj.num_vars);
         let fixed_mult = self.gkr_round.mult().fix_variables(&self.fixed_variables);
-
         let fr = self.gkr_round.vi.evaluate(&self.fixed_variables);
-
         for i in 0..size {
-            let field_index: Vec<F> = index_to_field_element(i, self.gkr_round.vj.num_vars);
-            let combined_vec = Self::create_combined_vec_array(&self.fixed_variables, &field_index);
-            self.p[i] = fixed_mult.evaluate(&combined_vec);
-            self.q[i] = fr * self.gkr_round.vj.evaluate(&field_index);
+            self.update_arrays_phase_two_mult(fixed_mult.clone(), fr, i);
         }
+    }
+
+    fn init_p_q_zero(&mut self, size: usize) {
+        self.p = vec![F::zero(); size];
+        self.q = vec![F::zero(); size];
+    }
+
+    fn update_arrays_phase_two_mult(&mut self, fixed_mult: SparseMultilinearExtension<F>, fr: F, i: usize) {
+        let field_index: Vec<F> = index_to_field_element(i, self.gkr_round.vj.num_vars);
+        let combined_vec = Self::create_combined_vec_array(&self.fixed_variables, &field_index);
+        self.p[i] = fixed_mult.evaluate(&combined_vec);
+        self.q[i] = fr * self.gkr_round.vj.evaluate(&field_index);
     }
 
     fn init_phase_one_add(&mut self) {
@@ -84,8 +89,7 @@ impl<F: Field> FastProver<F> {
         let second_half = self.gkr_round.vj().num_vars;
         let size = 1 << first_half;
 
-        self.p = vec![F::zero(); size];
-        self.q = vec![F::zero(); size];
+        self.init_p_q_zero(size);
 
         for i in 0..size {
             let i_index = index_to_field_element(i, first_half);
@@ -131,7 +135,7 @@ impl<F: Field> FastProver<F> {
 
 impl<F: Field> Prover<F> for FastProver<F> {
     fn compute_sum(&mut self) -> F { // This currently only works for the first half.
-        if self.fixed_variables.len() - 1 == self.gkr_round.vi.num_vars() && !self.has_phase_two_been_init {
+        if self.fixed_variables.len() == self.gkr_round.vi.num_vars() + 1 && !self.has_phase_two_been_init {
             // Now we have to initialize phase two.
             self.has_phase_two_been_init = true;
             self.initialize_phase_two();
@@ -265,6 +269,8 @@ mod test {
         prover.fix_variable(Fr::zero());
         assert_eq!(prover.compute_sum(), verifier_func[0]);
     }
+
+
 
     #[test]
     fn test_fix_variable_same_as_naive_mult_gate() {
