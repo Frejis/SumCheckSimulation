@@ -17,7 +17,7 @@ fn main() {
     // Just testing things out. First create a random GKR instance with Fr
     let gkr_round: GKRRound<Fr> = GKRRound::new_rand();
     let random_gate = random_gate(gkr_round.gate_labes());
-    let prover = NaiveProver::new(gkr_round.clone(), &random_gate);
+    let mut prover = NaiveProver::new(gkr_round.clone(), &random_gate);
     // Now we test the g_func gives what we expect
     let verifier = StandardVerifier::new(3, prover.compute_sum(), gkr_round);
     let verifier_func = prover.get_verifier_function();
@@ -39,7 +39,7 @@ mod generic_tests {
 
         let gkr_round: GKRRound<Fr> = GKRRound::new_rand();
         let random_gate = random_gate(gkr_round.gate_labes());
-        let prover = NaiveProver::new(gkr_round.clone(), &random_gate);
+        let mut prover = NaiveProver::new(gkr_round.clone(), &random_gate);
         // Now we test the g_func gives what we expect
         let verifier = StandardVerifier::new(3, prover.compute_sum(), gkr_round);
         let verifier_func = prover.get_verifier_function();

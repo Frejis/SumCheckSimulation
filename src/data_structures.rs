@@ -10,7 +10,7 @@ use crate::util::random_gkr_round_gates;
 
 pub trait Prover<F: Field> {
     // Computes the sum so we can have an alleged claim of the functions.
-    fn compute_sum(&self) -> F;
+    fn compute_sum(&mut self) -> F;
 
     // Creates a function that has one variable (meaning it fixes all other variables)
     fn get_verifier_function(&self) -> DenseMultilinearExtension<F>;

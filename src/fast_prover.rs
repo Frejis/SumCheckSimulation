@@ -11,6 +11,8 @@ pub struct FastProver<F: Field> {
     gkr_round: GKRRound<F>,
     p: Vec<F>,
     q: Vec<F>,
+    fixed_variables: Vec<F>,
+    has_phase_two_been_init: bool,
 }
 
 impl<F: Field> FastProver<F> {
@@ -27,7 +29,9 @@ impl<F: Field> FastProver<F> {
             p: Vec::new(),
             q: Vec::new(),
             gate: gate.clone(),
-            gkr_round: gkr_round.clone()
+            gkr_round: gkr_round.clone(),
+            fixed_variables: Vec::new(),
+            has_phase_two_been_init: false,
         };
         if should_initialize_phase_one {
             temp_res.initialize_phase_one()
@@ -46,6 +50,32 @@ impl<F: Field> FastProver<F> {
         match self.gkr_round.gate_type {
             GateType::Add => self.init_phase_one_add(),
             GateType::Mul => self.init_phase_one_mult()
+        }
+    }
+
+    fn initialize_phase_two(&mut self) {
+        match self.gkr_round.gate_type {
+            GateType::Add => { panic!() // I don't even want to bother at this point
+                }
+            GateType::Mul => self.init_phase_two_mult(),
+        }
+    }
+
+    fn init_phase_two_mult(&mut self) {
+        let size = 1 << self.gkr_round.vj.num_vars;
+        self.p = vec![F::zero(); size];
+        self.q = vec![F::zero(); size];
+
+        assert_eq!(self.fixed_variables.len(), self.gkr_round.vj.num_vars);
+        let fixed_mult = self.gkr_round.mult().fix_variables(&self.fixed_variables);
+
+        let fr = self.gkr_round.vi.evaluate(&self.fixed_variables);
+
+        for i in 0..size {
+            let field_index: Vec<F> = index_to_field_element(i, self.gkr_round.vj.num_vars);
+            let combined_vec = Self::create_combined_vec_array(&self.fixed_variables, &field_index);
+            self.p[i] = fixed_mult.evaluate(&combined_vec);
+            self.q[i] = fr * self.gkr_round.vj.evaluate(&field_index);
         }
     }
 
@@ -100,7 +130,12 @@ impl<F: Field> FastProver<F> {
 }
 
 impl<F: Field> Prover<F> for FastProver<F> {
-    fn compute_sum(&self) -> F { // This currently only works for the first half.
+    fn compute_sum(&mut self) -> F { // This currently only works for the first half.
+        if self.fixed_variables.len() - 1 == self.gkr_round.vi.num_vars() && !self.has_phase_two_been_init {
+            // Now we have to initialize phase two.
+            self.has_phase_two_been_init = true;
+            self.initialize_phase_two();
+        }
         let mut sum = F::zero();
         for i in 0..self.p.len() {
             match self.gkr_round.gate_type {
@@ -125,6 +160,7 @@ impl<F: Field> Prover<F> for FastProver<F> {
     }
 
     fn fix_variable(&mut self, r: F) {
+        self.fixed_variables.push(r);
         match self.gkr_round.gate_type {
             GateType::Add => self.fix_variable_add(r), // This was more like a sanity check.
             GateType::Mul => self.fix_variable_mult(r),
@@ -198,7 +234,7 @@ mod test {
     fn first_phase_sum_is_identical_to_naive() {
         let gkr_round: GKRRound<Fr> = GKRRound::new_rand();
         let random_gate = random_gate(gkr_round.gate_labes());
-        let fast_prover = FastProver::new(gkr_round.clone(), &random_gate);
+        let mut fast_prover = FastProver::new(gkr_round.clone(), &random_gate);
 
         let naive_sum = NaiveProver::ark_compute_sum_naive(&gkr_round.mult(), &gkr_round.vi, &gkr_round.vj, &random_gate, &gkr_round.gate_type);
         let fast_sum = fast_prover.compute_sum();
@@ -281,5 +317,23 @@ mod test {
         let verifier = StandardVerifier::new(5, fast_prover.compute_sum(), gkr_round);
         let verifier_func = fast_prover.get_verifier_function();
         assert!(verifier.check_claimed_value(&verifier_func));
+    }
+
+    #[test]
+    fn test_naive_agrees_with_fast_forall_variables() {
+        let mut gkr_round: GKRRound<Fr> = GKRRound::new_rand();
+        gkr_round.gate_type = GateType::Mul;
+
+        let r_gate = random_gate(gkr_round.gate_labes());
+        let mut fast_prover = FastProver::new(gkr_round.clone(), &r_gate);
+        let mut naive_prover = NaiveProver::new(gkr_round.clone(), &r_gate);
+        for i in 0..gkr_round.gate_labes() {
+            println!("Round number: {i}");
+            let r_variable = Fr::rand(&mut test_rng());
+            fast_prover.fix_variable(r_variable);
+            naive_prover.fix_variable(r_variable);
+            assert_eq!(fast_prover.compute_sum(), naive_prover.compute_sum());
+        }
+        assert_eq!(fast_prover.fixed_variables.len(), gkr_round.gate_labes());
     }
 }

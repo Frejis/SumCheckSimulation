@@ -106,7 +106,7 @@ impl<F: Field> NaiveProver<F> {
 
 impl<F: Field> Prover<F> for NaiveProver<F> {
     // Needs to be refactored just my last sumcheck which i know works.
-    fn compute_sum(&self) -> F {
+    fn compute_sum(&mut self) -> F {
         self.calculate_sum_naive()
     }
 
@@ -180,7 +180,7 @@ mod tests {
         let gkr_round = GKRRound::new_rand();
         let fixed_gate = util::random_gate(gkr_round.gate_labes());
 
-        let prover: NaiveProver<Fr> = NaiveProver::new(gkr_round, &fixed_gate);
+        let mut prover: NaiveProver<Fr> = NaiveProver::new(gkr_round, &fixed_gate);
         // Now we test the g_func gives what we expect
         let verifier_func = prover.get_verifier_function();
         // now we evaluate this function at Fr::zero() and Fr::one() and it has to be equal to the sum it claims.
@@ -211,7 +211,7 @@ mod tests {
         let gkr_round = GKRRound::new_rand();
         let fixed_gate = util::random_gate(gkr_round.gate_labes());
 
-        let prover: NaiveProver<Fr> = NaiveProver::new(gkr_round.clone(), &fixed_gate);
+        let mut prover: NaiveProver<Fr> = NaiveProver::new(gkr_round.clone(), &fixed_gate);
         let ark_sum = NaiveProver::ark_compute_sum_naive(&gkr_round.mult(), &gkr_round.vi, &gkr_round.vj, &*fixed_gate, &gkr_round.gate_type);
 
         let my_sum = prover.compute_sum();
