@@ -12,10 +12,10 @@ pub mod structures;
 pub mod verifiers;
 
 fn main() {
-    simulate_two_rounds_fast();
+    simulate_and_print_results();
 }
 
-fn simulate_two_rounds_fast() {
+fn simulate_and_print_results() {
     let gkr_round: GKRRound<Fr> = GKRRound::new_rand_var_size(11);
     let random_gate = random_gate(gkr_round.gate_labes());
     let prover = fast::FastProver::new(gkr_round.clone(), &random_gate);
@@ -27,6 +27,29 @@ fn simulate_two_rounds_fast() {
     compare_verifier_sum(gkr_round, prover);
 }
 
+
+/// Prints the running time of the prover and verifier for a GKRRound.
+///
+/// # Arguments
+///
+/// * `gkr_round`:
+/// * `prover`:
+///
+/// returns: ()
+///
+/// # Examples
+///
+/// ```
+///     let gkr_round: GKRRound<Fr> = GKRRound::new_rand_var_size(11);
+///     let random_gate = random_gate(gkr_round.gate_labes());
+///     let prover = fast::FastProver::new(gkr_round.clone(), &random_gate);
+///     println!("The number of variables is: {:?}", gkr_round.gate_labes());
+///     println!("Running the test with fast prover");
+///     compare_verifier_sum(gkr_round.clone(), prover);
+///     println!("Running the test with naive prover");
+///     let prover = naive::NaiveProver::new(gkr_round.clone(), &random_gate);
+///     compare_verifier_sum(gkr_round, prover);
+/// ```
 fn compare_verifier_sum<F: Field, P: SumCheckProver<F>>(gkr_round: GKRRound<F>, mut prover: P) {
     let mut verifier = StandardVerifier::new(3, prover.compute_sum(), gkr_round.clone());
     let mut prover_time_spent = Duration::ZERO;
