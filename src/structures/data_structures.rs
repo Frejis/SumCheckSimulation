@@ -2,7 +2,7 @@
 This file will contain structures relevant to setting up the proof system.
 */
 use ark_ff::Field;
-use ark_poly::{DenseMultilinearExtension, SparseMultilinearExtension};
+use ark_poly::SparseMultilinearExtension;
 
 pub trait SumCheckProver<F: Field> {
     // Computes the sum so we can have an alleged claim of the functions.
@@ -32,23 +32,4 @@ pub trait SumCheckVerifier<F: Field> {
     fn set_claim(&mut self, claim: F);
 
     fn final_check(&self);
-}
-
-pub trait GKRRoundProver<F: Field> {
-    /*
-    mult: SparseMultilinearExtension<F>, // mle of mult for round k with (r, i , j)
-    vi: DenseMultilinearExtension<F>, // mle of v_(k-1)(i)
-    vj: DenseMultilinearExtension<F>, // mle of v_(k-1)(i)
-    r: [F], // The gate "r" that is fixed.
-    */
-    fn set_mult(func: SparseMultilinearExtension<F>);
-    fn get_mult() -> SparseMultilinearExtension<F>;
-    fn set_vi(func: DenseMultilinearExtension<F>);
-    fn get_vi() -> DenseMultilinearExtension<F>;
-    fn set_vj(func: DenseMultilinearExtension<F>);
-    fn get_vj() -> DenseMultilinearExtension<F>;
-
-    fn set_gate(gate: [F]);
-    fn get_gate() -> [F];
-
 }
