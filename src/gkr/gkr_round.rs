@@ -87,11 +87,7 @@ impl<F: Field> GKRRound<F> {
     /// This function should only be used for testing purposes.
     pub fn new_rand_var_size(var_size: usize) -> GKRRound<F> {
 
-        let typ = if test_rng().r#gen::<bool>() {
-            GateType::Mul // Should be a `Add` but rn fast_prover doens't work with add.
-        } else {
-            GateType::Mul
-        };
+        let typ = GateType::Mul; // TODO update this when the `Add` functionality gets implemented.
         let (mult, vi, vj) = random_gkr_round_gates(var_size);
         GKRRound {
             mult,
