@@ -64,11 +64,45 @@ pub fn _line_point<F: Field>(b_star: &[F], c_star: &[F], t: F) -> Vec<F> {
         .collect()
 }
 
+/// This is an implementation of lagrange interpolation on multilinear polynomials.
+/// https://www.geeksforgeeks.org/dsa/lagranges-interpolation/
+/// # Arguments
+///
+/// * `b`: &[F]
+/// * `c`: &[F]
+///
+/// returns: Vec<F, Global>
+/// The math in the definition is labeled to align with terminology in ProofsArgsAndZk.
+/// Computes the Lagrange basis polynomials as defined in Eq 3.2.
+/// 'a' is the evaluation point (x_1, ..., x_v).
+/// Returns a vector of size 2^v where each element is chi_w(x).
+pub fn lagrange_interpolate_coeffs<F: Field>(a: &[F]) -> Vec<F> {
+    let v = a.len();
+    let mut basis = Vec::with_capacity(1 << v);
+
+    // Start with the base case (empty product is 1)
+    basis.push(F::one());
+
+    // Iteratively apply Eq 3.2: chi_w(x) = product (x_i*w_i + (1-x_i)(1-w_i))
+    for &xi in a {
+        let mut next_basis = Vec::with_capacity(basis.len() * 2);
+        for prev in basis {
+            // Case w_i = 0: term is (1 - x_i)
+            next_basis.push(prev * (F::one() - xi));
+            // Case w_i = 1: term is x_i
+            next_basis.push(prev * xi);
+        }
+        basis = next_basis;
+    }
+
+    basis
+}
+
 #[cfg(test)]
 mod test {
     use ark_bls12_381::Fr;
-    use ark_ff::{One, Zero};
-    use crate::util::_line_point;
+    use ark_ff::{Field, One, Zero};
+    use crate::util::{_line_point, lagrange_interpolate_coeffs};
 
     #[test]
     fn test_line_point() {
@@ -77,5 +111,46 @@ mod test {
         let c_star = vec![Fr::one(); size];
         assert_eq!(_line_point(b_star.as_ref(), c_star.as_ref(), Fr::zero()), b_star);
         assert_eq!(_line_point(b_star.as_ref(), c_star.as_ref(), Fr::one()), c_star)
+    }
+
+    #[test]
+    fn test_lagrange_coeffs_boolean_property() {
+        // Point (1, 0) corresponds to index 2 in lexicographical order (1*2^1 + 0*2^0)
+        // because our implementation follows Equation 3.2's product structure.
+        let point = vec![Fr::one(), Fr::zero()];
+        let coeffs = lagrange_interpolate_coeffs(&point);
+
+        // For v=2, there are 2^2 = 4 coefficients
+        assert_eq!(coeffs.len(), 4);
+
+        // According to Lemma 3.6, at a boolean point w*, chi_w*(w*) = 1 and others are 0.
+        // Index 2 is w=(1,0)
+        assert_eq!(coeffs[0], Fr::zero()); // w=(0,0)
+        assert_eq!(coeffs[1], Fr::zero()); // w=(0,1)
+        assert_eq!(coeffs[2], Fr::one());  // w=(1,0) -> Correct!
+        assert_eq!(coeffs[3], Fr::zero()); // w=(1,1)
+    }
+
+    #[test]
+    fn test_lagrange_coeffs_summation() {
+        // Test with arbitrary field elements (interpolation point outside the hypercube)
+        let point = vec![Fr::from(5u64), Fr::from(12u64), Fr::from(7u64)];
+        let coeffs = lagrange_interpolate_coeffs(&point);
+
+        // The sum of all chi_w(x) must always be 1
+        let sum: Fr = coeffs.iter().sum();
+        assert_eq!(sum, Fr::one());
+    }
+
+    #[test]
+    fn test_specific_value() {
+        // For v=1 at x=0.5, chi_0 = 0.5 and chi_1 = 0.5
+        // Using Fr::from(2).inverse() to get 0.5 in the field
+        let half = Fr::from(2u64).inverse().unwrap();
+        let point = vec![half];
+        let coeffs = lagrange_interpolate_coeffs(&point);
+
+        assert_eq!(coeffs[0], half); // (1 - 0.5)
+        assert_eq!(coeffs[1], half); // (0.5)
     }
 }
