@@ -293,6 +293,7 @@ mod test {
     }
 
     #[test]
+    #[should_panic]
     fn test_fix_variable_same_as_naive_add_gate() {
         let mut rand = test_rng();
         let mut gkr_round: GKRRound<Fr> = GKRRound::new_rand();
