@@ -1,12 +1,13 @@
 use ark_ff::Field;
-use ark_poly::{DenseMultilinearExtension, Polynomial, SparseMultilinearExtension};
-use crate::structures::data_structures::{GKRRound, SumCheckProver, SumCheckVerifier};
+use ark_poly::{Polynomial, SparseMultilinearExtension};
+use crate::gkr::gkr_round::GKRRound;
+use crate::structures::data_structures::SumCheckVerifier;
 
 pub struct StandardVerifier<F: Field> {
     random_points_chosen: Vec<F>,
     claimed_value: F,
     max_degree: usize,
-    gkr_round: GKRRound<F>,
+    _gkr_round: GKRRound<F>,
 }
 
 impl<F: Field> StandardVerifier<F> {
@@ -15,7 +16,7 @@ impl<F: Field> StandardVerifier<F> {
             random_points_chosen: Vec::new(),
             claimed_value,
             max_degree,
-            gkr_round,
+            _gkr_round : gkr_round,
         }
     }
 }

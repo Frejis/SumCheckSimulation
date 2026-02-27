@@ -1,14 +1,12 @@
-use std::cmp::PartialEq;
 use ark_ff::Field;
-use ark_poly::{DenseMultilinearExtension, MultilinearExtension, Polynomial, SparseMultilinearExtension};
-use ark_std::iterable::Iterable;
+use ark_poly::{MultilinearExtension, Polynomial, SparseMultilinearExtension};
+use crate::gkr::gkr_round::GKRRound;
 use crate::structures::circuit_structures::GateType;
-use crate::structures::data_structures::{GKRRound, SumCheckProver};
+use crate::structures::data_structures::SumCheckProver;
 use crate::util::{index_to_field_element};
 
 pub struct FastProver<F: Field> {
     fixed_mult: SparseMultilinearExtension<F>,
-    gate: Vec<F>,
     gkr_round: GKRRound<F>,
     p: Vec<F>,
     q: Vec<F>,
@@ -29,7 +27,6 @@ impl<F: Field> FastProver<F> {
             fixed_mult: gkr_round.mult().fix_variables(&*gate), // I don't think i needed to call clone.
             p: Vec::new(),
             q: Vec::new(),
-            gate: gate.clone(),
             gkr_round: gkr_round.clone(),
             fixed_variables: Vec::new(),
             has_phase_two_been_init: false,
@@ -223,16 +220,17 @@ impl<F: Field> FastProver<F> {
     }
 }
 
-
+#[cfg(test)]
 mod test {
     use ark_bls12_381::Fr;
     use ark_ff::Zero;
     use ark_std::{test_rng, UniformRand};
     use crate::structures::circuit_structures::GateType;
-    use crate::structures::data_structures::{GKRRound, SumCheckProver, SumCheckVerifier};
+    use crate::structures::data_structures::{SumCheckProver, SumCheckVerifier};
     use crate::fast::FastProver;
+    use crate::gkr::gkr_round::GKRRound;
     use crate::naive::NaiveProver;
-    use crate::util::{random_gate, random_gkr_round_gates};
+    use crate::util::random_gate;
     use crate::verifiers::standard_verifier::StandardVerifier;
 
     #[test]
@@ -256,8 +254,8 @@ mod test {
         let r_field = Fr::rand(&mut rand);
 
         fast_prover.fix_variable(r_field);
-        assert_eq!(fast_prover.p.len(), (1 << gkr_round.gate_labes() - 1));
-        assert_eq!(fast_prover.q.len(), (1 << gkr_round.gate_labes() - 1));
+        assert_eq!(fast_prover.p.len(), 1 << gkr_round.gate_labes() - 1);
+        assert_eq!(fast_prover.q.len(), 1 << gkr_round.gate_labes() - 1);
     }
 
     #[test]

@@ -1,9 +1,8 @@
-use std::arch::x86_64::_mm_aeskeygenassist_si128;
-use ark_ff::{Field, SqrtPrecomputation, Zero};
+use ark_ff::Field;
 use ark_poly::{DenseMultilinearExtension, MultilinearExtension, Polynomial, SparseMultilinearExtension};
-use ark_std::iterable::Iterable;
+use crate::gkr::gkr_round::GKRRound;
 use crate::structures::circuit_structures::GateType;
-use crate::structures::data_structures::{GKRRound, SumCheckProver};
+use crate::structures::data_structures::SumCheckProver;
 use crate::util::index_to_field_element;
 
 pub struct NaiveProver<F: Field> {
@@ -105,7 +104,7 @@ impl<F: Field> NaiveProver<F> {
 }
 
 impl<F: Field> SumCheckProver<F> for NaiveProver<F> {
-    // Needs to be refactored just my last sumcheck which i know works.
+    // Needs to be refactored just my last sumcheck which I know works.
     fn compute_sum(&mut self) -> F {
         self.calculate_sum_naive()
     }
@@ -130,7 +129,7 @@ impl<F: Field> SumCheckProver<F> for NaiveProver<F> {
             let value = self.eval_g(&field_index);
             if field_index[0].is_zero() {
                 s0 += &value;
-            } else if (field_index[0].is_one()) {
+            } else if field_index[0].is_one() {
                 s1 += &value;
             }
         }
@@ -145,7 +144,7 @@ impl<F: Field> SumCheckProver<F> for NaiveProver<F> {
         let field_packed = &[random_field_element];
         self.fixed_mult = self.fixed_mult.fix_variables(field_packed);
 
-        if (self.gkr_round.vi.num_vars > 0) {
+        if self.gkr_round.vi.num_vars > 0 {
             self.gkr_round.vi = self.gkr_round.vi.fix_variables(field_packed);
         } else {
             self.gkr_round.vj = self.gkr_round.vj.fix_variables(field_packed);
@@ -153,24 +152,26 @@ impl<F: Field> SumCheckProver<F> for NaiveProver<F> {
     }
 }
 
+#[cfg(test)]
 mod tests {
     use ark_bls12_381::Fr;
     use ark_ff::{One, Zero};
     use ark_poly::MultilinearExtension;
     use ark_std::{test_rng, UniformRand};
-    use crate::structures::data_structures::{GKRRound, SumCheckProver};
+    use crate::gkr::gkr_round::GKRRound;
+    use crate::structures::data_structures::SumCheckProver;
     use crate::naive::NaiveProver;
     use crate::util;
-    use crate::util::{index_to_field_element, random_gate};
+    use crate::util::index_to_field_element;
 
     #[test]
     fn sanity_check() {
         for mask in 0..30 {
-            let mut points = vec![ark_bls12_381::Fr::zero(); 30];
-            let field_index: Vec<ark_bls12_381::Fr> = index_to_field_element(mask, 30);
+            let mut points = vec![Fr::zero(); 30];
+            let field_index: Vec<Fr> = index_to_field_element(mask, 30);
             for j in 0..30 {
                 let bit = (mask >> j) & 1 != 0;
-                points[j] = if bit { ark_bls12_381::Fr::one() } else { ark_bls12_381::Fr::zero() }
+                points[j] = if bit { Fr::one() } else { Fr::zero() }
             }
             assert_eq!(field_index, points)
         }

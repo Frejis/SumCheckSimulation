@@ -1,4 +1,4 @@
-use ark_ff::{Field, UniformRand};
+use ark_ff::Field;
 use ark_poly::{DenseMultilinearExtension, SparseMultilinearExtension};
 use rand::Rng;
 
