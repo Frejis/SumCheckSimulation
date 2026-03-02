@@ -1,6 +1,7 @@
 use ark_ff::Field;
 use ark_poly::{MultilinearExtension, Polynomial, SparseMultilinearExtension};
 use crate::gkr::gkr_round::GKRRound;
+use crate::gkr::layer::LayerReductionMessage;
 use crate::structures::circuit_structures::GateType;
 use crate::structures::data_structures::SumCheckProver;
 use crate::util::{index_to_field_element};
@@ -167,6 +168,10 @@ impl<F: Field> SumCheckProver<F> for FastProver<F> {
             GateType::Add => self.fix_variable_add(r), // This was more like a sanity check.
             GateType::Mul => self.fix_variable_mult(r),
         }
+    }
+
+    fn layer_reduction_message(&self, b_star: &[F], c_star: &[F]) -> LayerReductionMessage<F> {
+        todo!()
     }
 }
 

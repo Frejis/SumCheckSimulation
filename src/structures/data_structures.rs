@@ -3,6 +3,7 @@ This file will contain structures relevant to setting up the proof system.
 */
 use ark_ff::Field;
 use ark_poly::SparseMultilinearExtension;
+use crate::gkr::layer::LayerReductionMessage;
 
 pub trait SumCheckProver<F: Field> {
     // Computes the sum so we can have an alleged claim of the functions.
@@ -13,6 +14,7 @@ pub trait SumCheckProver<F: Field> {
 
     fn fix_variable(&mut self, random_field_element: F);
 
+    fn layer_reduction_message(&self, b_star: &[F], c_star: &[F]) -> LayerReductionMessage<F>;
 }
 
 pub trait SumCheckVerifier<F: Field> {

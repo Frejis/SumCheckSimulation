@@ -1,13 +1,15 @@
 use ark_ff::Field;
 use ark_poly::{DenseMultilinearExtension, MultilinearExtension, Polynomial, SparseMultilinearExtension};
 use crate::gkr::gkr_round::GKRRound;
+use crate::gkr::layer::LayerReductionMessage;
 use crate::structures::circuit_structures::GateType;
 use crate::structures::data_structures::SumCheckProver;
-use crate::util::index_to_field_element;
+use crate::util::{_line_point, index_to_field_element};
 
 pub struct NaiveProver<F: Field> {
     gkr_round: GKRRound<F>,
     fixed_mult: SparseMultilinearExtension<F>,
+    layer_value_mle: DenseMultilinearExtension<F>,
 }
 
 impl<F: Field> NaiveProver<F> {
@@ -20,8 +22,9 @@ impl<F: Field> NaiveProver<F> {
         assert_eq!(gate.len(), gkr_round.gate_labes());
         let fixed_mult = gkr_round.mult().fix_variables(gate);
         NaiveProver {
+            layer_value_mle: gkr_round.vi.clone(),
             gkr_round,
-            fixed_mult
+            fixed_mult,
         }
     }
 
@@ -150,19 +153,56 @@ impl<F: Field> SumCheckProver<F> for NaiveProver<F> {
             self.gkr_round.vj = self.gkr_round.vj.fix_variables(field_packed);
         }
     }
+
+    fn layer_reduction_message(&self, b_star: &[F], c_star: &[F]) -> LayerReductionMessage<F> {
+        let k_ip1 = self.layer_value_mle.num_vars;
+        assert_eq!(b_star.len(), k_ip1);
+        assert_eq!(b_star.len(), c_star.len());
+
+        let mut evaluations_vector: Vec<F> = Vec::new();
+
+        // Degree will be <= k.
+        for i in 0..=k_ip1 {
+            let point = _line_point(
+                b_star,
+                c_star,
+                F::from(i as u64)
+            );
+
+            evaluations_vector.push(self.layer_value_mle.evaluate(&point));
+        }
+
+        let z1 = self.layer_value_mle.evaluate(&b_star.to_vec());
+        let z2 = self.layer_value_mle.evaluate(&c_star.to_vec());
+
+        let qt = DenseMultilinearExtension::from_evaluations_vec(1, evaluations_vector);
+        LayerReductionMessage::new(z1, z2, qt)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use ark_bls12_381::Fr;
     use ark_ff::{One, Zero};
-    use ark_poly::MultilinearExtension;
+    use ark_poly::{MultilinearExtension, Polynomial};
     use ark_std::{test_rng, UniformRand};
     use crate::gkr::gkr_round::GKRRound;
     use crate::structures::data_structures::SumCheckProver;
     use crate::naive::NaiveProver;
     use crate::util;
     use crate::util::index_to_field_element;
+
+    #[test]
+    fn test_layer_reduction_message() {
+        let gkr_round = GKRRound::new_rand();
+        let fixed_gate = util::random_gate(gkr_round.gate_labes());
+        let b_star = util::random_gate(gkr_round.gate_labes());
+        let c_star = util::random_gate(gkr_round.gate_labes());
+
+        let mut prover: NaiveProver<Fr> = NaiveProver::new(gkr_round, &fixed_gate);
+        let message = prover.layer_reduction_message(&*b_star, &*c_star);
+        todo!()
+    }
 
     #[test]
     fn sanity_check() {
