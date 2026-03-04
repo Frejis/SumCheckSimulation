@@ -64,6 +64,30 @@ pub fn _line_point<F: Field>(b_star: &[F], c_star: &[F], t: F) -> Vec<F> {
         .collect()
 }
 
+/// Univariate Lagrange interpolation at point `r` using evaluations at 0, 1, ..., n-1.
+pub fn interpolate_univariate<F: Field>(evals: &[F], r: F) -> F {
+    let n = evals.len();
+    let mut result = F::zero();
+    let mut x_coords = Vec::with_capacity(n);
+    for i in 0..n {
+        x_coords.push(F::from(i as u64));
+    }
+    
+    for j in 0..n {
+        let mut num = F::one();
+        let mut den = F::one();
+        for i in 0..n {
+            if i == j {
+                continue;
+            }
+            num *= r - x_coords[i];
+            den *= x_coords[j] - x_coords[i];
+        }
+        result += evals[j] * num * den.inverse().unwrap();
+    }
+    result
+}
+
 /// This is an implementation of lagrange interpolation on multilinear polynomials.
 /// https://www.geeksforgeeks.org/dsa/lagranges-interpolation/
 /// # Arguments
@@ -76,7 +100,7 @@ pub fn _line_point<F: Field>(b_star: &[F], c_star: &[F], t: F) -> Vec<F> {
 /// Computes the Lagrange basis polynomials as defined in Eq 3.2.
 /// 'a' is the evaluation point (x_1, ..., x_v).
 /// Returns a vector of size 2^v where each element is chi_w(x).
-pub fn lagrange_interpolate_coeffs<F: Field>(a: &[F]) -> Vec<F> {
+pub fn _lagrange_interpolate_coeffs<F: Field>(a: &[F]) -> Vec<F> {
     let v = a.len();
     let mut basis = Vec::with_capacity(1 << v);
 
@@ -102,7 +126,7 @@ pub fn lagrange_interpolate_coeffs<F: Field>(a: &[F]) -> Vec<F> {
 mod test {
     use ark_bls12_381::Fr;
     use ark_ff::{Field, One, Zero};
-    use crate::util::{_line_point, lagrange_interpolate_coeffs};
+    use crate::util::{_line_point, _lagrange_interpolate_coeffs};
 
     #[test]
     fn test_line_point() {
@@ -118,7 +142,7 @@ mod test {
         // Point (1, 0) corresponds to index 2 in lexicographical order (1*2^1 + 0*2^0)
         // because our implementation follows Equation 3.2's product structure.
         let point = vec![Fr::one(), Fr::zero()];
-        let coeffs = lagrange_interpolate_coeffs(&point);
+        let coeffs = _lagrange_interpolate_coeffs(&point);
 
         // For v=2, there are 2^2 = 4 coefficients
         assert_eq!(coeffs.len(), 4);
@@ -135,7 +159,7 @@ mod test {
     fn test_lagrange_coeffs_summation() {
         // Test with arbitrary field elements (interpolation point outside the hypercube)
         let point = vec![Fr::from(5u64), Fr::from(12u64), Fr::from(7u64)];
-        let coeffs = lagrange_interpolate_coeffs(&point);
+        let coeffs = _lagrange_interpolate_coeffs(&point);
 
         // The sum of all chi_w(x) must always be 1
         let sum: Fr = coeffs.iter().sum();
@@ -148,7 +172,7 @@ mod test {
         // Using Fr::from(2).inverse() to get 0.5 in the field
         let half = Fr::from(2u64).inverse().unwrap();
         let point = vec![half];
-        let coeffs = lagrange_interpolate_coeffs(&point);
+        let coeffs = _lagrange_interpolate_coeffs(&point);
 
         assert_eq!(coeffs[0], half); // (1 - 0.5)
         assert_eq!(coeffs[1], half); // (0.5)

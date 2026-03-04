@@ -1,12 +1,11 @@
 use ark_ff::Field;
-use ark_poly::{DenseMultilinearExtension, SparseMultilinearExtension};
 use crate::structures::circuit_structures::Gate;
 
 #[derive(Clone, Debug)]
 pub struct LayerReductionMessage<F: Field> {
     z1: F,
     z2: F,
-    qt: DenseMultilinearExtension<F>,
+    qt: Vec<F>,
 }
 
 impl<F: Field> LayerReductionMessage<F> {
@@ -18,13 +17,13 @@ impl<F: Field> LayerReductionMessage<F> {
         self.z2
     }
 
-    pub fn qt(&self) -> &DenseMultilinearExtension<F> {
+    pub fn qt(&self) -> &Vec<F> {
         &self.qt
     }
 }
 
 impl<F: Field> LayerReductionMessage<F> {
-    pub fn new(z1: F, z2: F, qt: DenseMultilinearExtension<F>) -> Self {
+    pub fn new(z1: F, z2: F, qt: Vec<F>) -> Self {
         Self {
             z1,
             z2,

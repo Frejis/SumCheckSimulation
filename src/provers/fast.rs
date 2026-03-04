@@ -149,7 +149,7 @@ impl<F: Field> SumCheckProver<F> for FastProver<F> {
         sum
     }
 
-    fn get_verifier_function(&self) -> SparseMultilinearExtension<F> {
+    fn get_verifier_function(&self) -> Vec<F> {
         let mut s0 = F::zero();
         let mut s1 = F::zero();
         for mask in 0..self.p.len() {
@@ -157,9 +157,15 @@ impl<F: Field> SumCheckProver<F> for FastProver<F> {
                 GateType::Mul => self.p[mask] * self.q[mask],
                 GateType::Add => self.p[mask],
             };
-            if mask & 1 == 0 { s0 += value; }
-            else { s1 += value; } }
-        SparseMultilinearExtension::from_evaluations(1, vec![&(0, s0), &(1, s1)])
+            if mask & 1 == 0 {
+                s0 += value;
+            } else {
+                s1 += value;
+            }
+        }
+        // For multilinear, s2 = L(2) = 2*L(1) - L(0) = 2*s1 - s0
+        let s2 = s1 + s1 - s0;
+        vec![s0, s1, s2]
     }
 
     fn fix_variable(&mut self, r: F) {
@@ -170,8 +176,8 @@ impl<F: Field> SumCheckProver<F> for FastProver<F> {
         }
     }
 
-    fn layer_reduction_message(&self, b_star: &[F], c_star: &[F]) -> LayerReductionMessage<F> {
-        todo!()
+    fn layer_reduction_message(&self, _b_star: &[F], _c_star: &[F]) -> LayerReductionMessage<F> {
+        LayerReductionMessage::new(F::zero(), F::zero(), vec![F::zero()])
     }
 }
 

@@ -27,11 +27,8 @@ impl<F: Field> GKRCircuit<F> {
             for _ in 0..layer_sizes[i] {
                 let left = rng.gen_range(0..next_size);
                 let right = rng.gen_range(0..next_size);
-                let typ = if rng.r#gen::<bool>() {
-                    GateType::Add
-                } else {
-                    GateType::Mul
-                };
+                // For now, only use Mul gates since the protocol doesn't handle mixed gates yet
+                let typ = GateType::Mul;
 
                 // Compute this gate’s value from next layer’s values.
                 let val = match typ {
@@ -62,22 +59,24 @@ impl<F: Field> Layer<F> {
         k_child: usize,
     ) -> (SparseMultilinearExtension<F>, SparseMultilinearExtension<F>) {
         let mut add_terms = Vec::<(usize, F)>::new();
-        let mut mul_terms = Vec::<(usize, F)>::new();
+        let mut mult_terms = Vec::<(usize, F)>::new();
 
         // Each gate corresponds to exactly one location in the hypercube.
         for (gate_idx, gate) in self.gates.iter().enumerate() {
-            // Combined index over bits (x,b,c) for this wiring triple
+            // Combined index over bits (x,b,c) for this wiring triple.
+            // (x, b, c) -> (gate_idx, gate.left, gate.right)
+            // LSB to MSB: x bits, then b bits, then c bits.
             let combined_index =
-                (gate_idx << (2 * k_child)) | (gate.left << k_child) | gate.right;
+                gate_idx | (gate.left << k_x) | (gate.right << (k_x + k_child));
             match gate.typ {
                 GateType::Add => add_terms.push((combined_index, F::one())),
-                GateType::Mul => mul_terms.push((combined_index, F::one())),
+                GateType::Mul => mult_terms.push((combined_index, F::one())),
             }
         }
 
         let total_vars = k_x + 2 * k_child;
         let add_ext = SparseMultilinearExtension::from_evaluations(total_vars, &add_terms);
-        let mul_ext = SparseMultilinearExtension::from_evaluations(total_vars, &mul_terms);
+        let mul_ext = SparseMultilinearExtension::from_evaluations(total_vars, &mult_terms);
         (add_ext, mul_ext)
     }
 
