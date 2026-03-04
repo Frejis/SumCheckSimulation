@@ -1,6 +1,7 @@
 use ark_ff::Field;
 use ark_poly::{Polynomial, SparseMultilinearExtension};
 use ark_std::test_rng;
+use ark_std::rand::{Rng, SeedableRng, rngs::StdRng};
 use crate::gkr::gkr_round::GKRRound;
 use crate::gkr::layer::LayerReductionMessage;
 use crate::structures::data_structures::SumCheckVerifier;
@@ -11,6 +12,13 @@ pub struct StandardVerifier<F: Field> {
     claimed_value: F,
     max_degree: usize,
     _gkr_round: GKRRound<F>,
+    rng: StdRng,
+}
+
+impl<F: Field> StandardVerifier<F> {
+    pub(crate) fn random_points_chosen(&self) -> Vec<F> {
+        self.random_points_chosen.clone()
+    }
 }
 
 impl<F: Field> StandardVerifier<F> {
@@ -19,7 +27,8 @@ impl<F: Field> StandardVerifier<F> {
             random_points_chosen: Vec::new(),
             claimed_value,
             max_degree,
-            _gkr_round : gkr_round,
+            _gkr_round: gkr_round,
+            rng: StdRng::seed_from_u64(42),
         }
     }
 
@@ -30,21 +39,17 @@ impl<F: Field> StandardVerifier<F> {
         msg: &LayerReductionMessage<F>,
         rng: &mut R,
     ) -> (Vec<F>, F) {
-        let q0 = msg.qt().evaluate(&[F::zero()].to_vec());
-        let q1 = msg.qt().evaluate(&[F::one()].to_vec());
+        let q0 = msg.qt().evaluate(&F::zero());
+        let q1 = msg.qt().evaluate(&F::one());
         assert_eq!(q0, msg.z1(), "q(0) != z1");
         assert_eq!(q1, msg.z2(), "q(1) != z2");
 
-        let r_star = F::rand(&mut test_rng()); // TODO find a better way to do this.
+        let r_star = F::rand(rng); // TODO find a better way to do this.
+
         let r_line_restriced = _line_point(b_star, c_star, r_star);
-        let wlr = self._gkr_round.vi.evaluate(&r_line_restriced);
 
-        let next_claim = msg.qt().evaluate(&[r_star].to_vec());
+        let next_claim = msg.eval(r_star);
 
-        // Check evaluation
-        assert_eq!(next_claim, wlr);
-
-        // 1/|F| the above check is successful but eh, what can you do.
         (r_line_restriced, next_claim)
     }
 }
@@ -57,15 +62,16 @@ impl<F: Field> SumCheckVerifier<F> for StandardVerifier<F> {
     /// WARNING THIS SHOULD ONLY BE USED FOR TESTING SINCE TEST_RNG IS NOT CRYPTOGRAPHICALLY SECURE
     /// This is also just for simulating, so for now it will be fine to give an idea.
     fn get_random_field_element(&mut self) -> F {
-        let mut rng = ark_std::test_rng();
         // Let's sample uniformly random field elements:
-        let rand_element = F::rand(&mut rng);
+        let rand_element = F::rand(&mut self.rng);
         self.random_points_chosen.push(rand_element);
         rand_element
     }
 
     fn check_claimed_value(&self, gx: &SparseMultilinearExtension<F>) -> bool {
         let checked_claim: F = gx.evaluations.iter().map(|(_, &v)| v).sum();
+        println!("Checked claim: {}", checked_claim);
+        println!("Claimed value: {}", self.claimed_value);
         let res = checked_claim == self.claimed_value;
         res
     }

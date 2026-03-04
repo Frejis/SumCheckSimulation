@@ -1,5 +1,6 @@
 use ark_ff::Field;
-use ark_poly::{DenseMultilinearExtension, MultilinearExtension, SparseMultilinearExtension};
+use ark_poly::{DenseMultilinearExtension, DenseUVPolynomial, MultilinearExtension, Polynomial, SparseMultilinearExtension};
+use ark_poly::univariate::DensePolynomial;
 use ark_std::test_rng;
 
 /// Taken from arkworks sumcheck protocol.
@@ -96,6 +97,47 @@ pub fn lagrange_interpolate_coeffs<F: Field>(a: &[F]) -> Vec<F> {
     }
 
     basis
+}
+
+pub fn restrict_mle_to_line<F: Field>(
+    mle: &DenseMultilinearExtension<F>,
+    a: &[F],
+    b: &[F],
+    ts: &[F],
+) -> Vec<F> {
+    assert_eq!(a.len(), b.len());
+    assert_eq!(a.len(), mle.num_vars);
+
+    ts.iter()
+        .map(|t| {
+            let point: Vec<F> = a.iter()
+                .zip(b.iter())
+                .map(|(ai, bi)| *ai + (*bi - *ai) * *t)
+                .collect();
+
+            mle.evaluate(&point)
+        })
+        .collect()
+}
+
+pub fn interpolate_univariate<F: Field>(evals: &[F], points: &[F]) -> DensePolynomial<F> {
+    assert_eq!(evals.len(), points.len());
+    let mut poly = DensePolynomial::from_coefficients_vec(vec![F::zero()]);
+    for i in 0..evals.len() {
+        let mut term = DensePolynomial::from_coefficients_vec(vec![evals[i]]);
+        for j in 0..evals.len() {
+            if i == j {
+                continue;
+            }
+            let denominator = (points[i] - points[j]).inverse().unwrap();
+            // (X - points[j]) * denominator = denominator * X - points[j] * denominator
+            let sub_poly =
+                DensePolynomial::from_coefficients_vec(vec![-points[j] * denominator, denominator]);
+            term = term.naive_mul(&sub_poly);
+        }
+        poly = poly + term;
+    }
+    poly
 }
 
 #[cfg(test)]

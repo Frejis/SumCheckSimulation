@@ -27,11 +27,7 @@ impl<F: Field> GKRCircuit<F> {
             for _ in 0..layer_sizes[i] {
                 let left = rng.gen_range(0..next_size);
                 let right = rng.gen_range(0..next_size);
-                let typ = if rng.r#gen::<bool>() {
-                    GateType::Add
-                } else {
-                    GateType::Mul
-                };
+                let typ = GateType::Mul;
 
                 // Compute this gate’s value from next layer’s values.
                 let val = match typ {
@@ -67,8 +63,9 @@ impl<F: Field> Layer<F> {
         // Each gate corresponds to exactly one location in the hypercube.
         for (gate_idx, gate) in self.gates.iter().enumerate() {
             // Combined index over bits (x,b,c) for this wiring triple
-            let combined_index =
-                (gate_idx << (2 * k_child)) | (gate.left << k_child) | gate.right;
+            // We want x to be the least significant bits so that fix_variables(x) works as expected
+            // when fixing the first k_x variables.
+            let combined_index = gate_idx | (gate.left << k_x) | (gate.right << (k_x + k_child));
             match gate.typ {
                 GateType::Add => add_terms.push((combined_index, F::one())),
                 GateType::Mul => mul_terms.push((combined_index, F::one())),

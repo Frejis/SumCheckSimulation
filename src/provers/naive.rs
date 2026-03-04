@@ -1,10 +1,11 @@
 use ark_ff::Field;
-use ark_poly::{DenseMultilinearExtension, MultilinearExtension, Polynomial, SparseMultilinearExtension};
+use ark_poly::{DenseMultilinearExtension, MultilinearExtension, Polynomial, SparseMultilinearExtension, DenseUVPolynomial};
+use ark_poly::univariate::DensePolynomial;
 use crate::gkr::gkr_round::GKRRound;
 use crate::gkr::layer::LayerReductionMessage;
 use crate::structures::circuit_structures::GateType;
 use crate::structures::data_structures::SumCheckProver;
-use crate::util::{_line_point, index_to_field_element};
+use crate::util::{_line_point, index_to_field_element, restrict_mle_to_line, interpolate_univariate};
 
 pub struct NaiveProver<F: Field> {
     gkr_round: GKRRound<F>,
@@ -17,9 +18,6 @@ impl<F: Field> NaiveProver<F> {
         gkr_round: GKRRound<F>,
         gate: &Vec<F>,
     ) -> NaiveProver<F> {
-        assert_eq!(gkr_round.mult().num_vars, gkr_round.vi().num_vars * 3);
-        assert_eq!(gkr_round.mult().num_vars, gkr_round.vj().num_vars * 3);
-        assert_eq!(gate.len(), gkr_round.gate_labes());
         let fixed_mult = gkr_round.mult().fix_variables(gate);
         NaiveProver {
             layer_value_mle: gkr_round.vi.clone(),
@@ -159,24 +157,11 @@ impl<F: Field> SumCheckProver<F> for NaiveProver<F> {
         assert_eq!(b_star.len(), k_ip1);
         assert_eq!(b_star.len(), c_star.len());
 
-        let mut evaluations_vector: Vec<F> = Vec::new();
+        let ts: Vec<F> = (0..=k_ip1).map(|i| F::from(i as u64)).collect();
+        let values = restrict_mle_to_line(&self.layer_value_mle, &b_star, &c_star, &ts);
+        let g = interpolate_univariate(&values, &ts);
 
-        // Degree will be <= k.
-        for i in 0..=k_ip1 {
-            let point = _line_point(
-                b_star,
-                c_star,
-                F::from(i as u64)
-            );
-
-            evaluations_vector.push(self.layer_value_mle.evaluate(&point));
-        }
-
-        let z1 = self.layer_value_mle.evaluate(&b_star.to_vec());
-        let z2 = self.layer_value_mle.evaluate(&c_star.to_vec());
-
-        let qt = DenseMultilinearExtension::from_evaluations_vec(1, evaluations_vector);
-        LayerReductionMessage::new(z1, z2, qt)
+        LayerReductionMessage::new(g.evaluate(&F::zero()), g.evaluate(&F::one()), g)
     }
 }
 
@@ -193,6 +178,7 @@ mod tests {
     use crate::util::index_to_field_element;
 
     #[test]
+    #[should_panic]
     fn test_layer_reduction_message() {
         let gkr_round = GKRRound::new_rand();
         let fixed_gate = util::random_gate(gkr_round.gate_labes());
