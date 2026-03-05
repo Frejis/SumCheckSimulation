@@ -1,6 +1,5 @@
 use ark_ff::Field;
 use ark_poly::{DenseMultilinearExtension, MultilinearExtension, Polynomial, SparseMultilinearExtension};
-use blake2::digest::generic_array::arr;
 
 use crate::{structures::data_structures::SumCheckProver, util::index_to_field_element};
 use crate::gkr::gkr_round::GKRRound;
@@ -16,15 +15,20 @@ struct Libra<F: Field> {
 }
 
 impl<F: Field> Libra<F> {
+    /// Initializes the Libra prover for a given GKR round and gate values.
+    /// Initializes ´phase one´ by when creating.
     pub fn new(gkrround: &GKRRound<F>, g: Vec<F>)-> Self {
-        Self {
+        let mut libra = Self {
             a_hg: DenseMultilinearExtension::from_evaluations_vec(gkrround.vj.num_vars, vec![F::zero(); 1 << gkrround.vj.num_vars]),
             phase: ProverPhase::Uninitialized,
             f1: gkrround.mult().clone(),
             f2: gkrround.vi.clone(),
             f3: gkrround.vj.clone(),
             g,
-        }
+        };
+        // Initialize by default.
+        libra.handle_phases();
+        libra
     }
 
     pub fn initialize_phase_one(
@@ -46,33 +50,10 @@ impl<F: Field> Libra<F> {
     }
 }
 
-pub fn get_first_l_bits_as_usize(bits: usize, l: usize) -> usize {
-    // Extract the first l bits (bits 0 to l)
-    // For indices structured as (x, y) where each is l bits, this gets x
-    get_bits_from_to_as_usize(bits, 0, l)
-}
-
-pub fn get_last_l_bits_as_usize(bits: usize, l: usize) -> usize {
-    // Extract the last l bits (bits l to 2*l)
-    // For indices structured as (x, y) where each is l bits, this gets y
-    get_bits_from_to_as_usize(bits, l, 2 * l)
-}
-
-pub fn get_middle_l_bits_as_usize(bits: usize, l: usize) -> usize {
-    // Extract the middle l bits (bits l to 2*l)
-    // For indices structured as (x, b, c) where each is l bits, this gets b
-    get_bits_from_to_as_usize(bits, l, 2 * l)
-}
-
-pub fn get_bits_from_to_as_usize(bits: usize, from: usize, to: usize) -> usize {
-    let mask = (1 << (to - from)) - 1;
-    (bits >> from) & mask
-}
-
 impl<F: Field> SumCheckProver<F> for Libra<F> {
     fn compute_sum(&mut self) -> F {
         self.handle_phases();
-        self.sum_a_hg()
+        self.compute_inner_product()
     }
 
     fn get_verifier_function(&self) -> ark_poly::SparseMultilinearExtension<F> {
@@ -80,6 +61,19 @@ impl<F: Field> SumCheckProver<F> for Libra<F> {
     }
 
     fn fix_variable(&mut self, r: F) {
+        assert_ne!(self.phase, ProverPhase::Uninitialized);
+        let (new_f2, new_hg) = self.fold_f2_and_ahg(r);
+        self.f2 = DenseMultilinearExtension::from_evaluations_vec( self.f2.num_vars - 1, new_f2);
+        self.a_hg = DenseMultilinearExtension::from_evaluations_vec(self.a_hg.num_vars - 1,new_hg);
+    }
+
+    fn layer_reduction_message(&self, b_star: &[F], c_star: &[F]) -> crate::gkr::layer::LayerReductionMessage<F> {
+        todo!()
+    }
+}
+
+impl<F: Field> Libra<F> {
+    fn fold_f2_and_ahg(&mut self, r: F) -> (Vec<F>, Vec<F>) {
         let n = self.a_hg.evaluations.len();
         let half = n >> 1;
 
@@ -87,32 +81,29 @@ impl<F: Field> SumCheckProver<F> for Libra<F> {
         let mut new_hg = Vec::with_capacity(half);
 
         for i in 0..half {
-            let i0 = i << 1;
-            let i1 = i0 | 1;
-
-            let f2_0 = self.f2[i0];
-            let f2_1 = self.f2[i1];
-
-            let hg_0 = self.a_hg[i0];
-            let hg_1 = self.a_hg[i1];
-
-            new_f2.push(f2_0 + r * (f2_1 - f2_0));
-            new_hg.push(hg_0 + r * (hg_1 - hg_0));
+            self.fold_pair_at_index(r, &mut new_f2, &mut new_hg, i);
         }
-
-        self.f2 = DenseMultilinearExtension::from_evaluations_vec(
-            self.f2.num_vars - 1,
-            new_f2,
-        );
-
-        self.a_hg = DenseMultilinearExtension::from_evaluations_vec(
-            self.a_hg.num_vars - 1,
-            new_hg,
-        );
+        (new_f2, new_hg)
     }
 
-    fn layer_reduction_message(&self, b_star: &[F], c_star: &[F]) -> crate::gkr::layer::LayerReductionMessage<F> {
-        todo!()
+    fn fold_pair_at_index(&mut self, r: F, new_f2: &mut Vec<F>, new_hg: &mut Vec<F>, index: usize) {
+        let i0 = index << 1;
+        let i1 = i0 | 1;
+
+        let f2_0 = self.f2[i0];
+        let f2_1 = self.f2[i1];
+
+        let hg_0 = self.a_hg[i0];
+        let hg_1 = self.a_hg[i1];
+
+        let new_f2_value = f2_0 + r * (f2_1 - f2_0);
+        let new_hg_value = hg_0 + r * (hg_1 - hg_0);
+        Self::push_folded_values(new_f2, new_hg, new_f2_value, new_hg_value);
+    }
+
+    fn push_folded_values(new_f2: &mut Vec<F>, new_hg: &mut Vec<F>, new_f2_value: F, new_hg_value: F) {
+        new_f2.push(new_f2_value);
+        new_hg.push(new_hg_value);
     }
 }
 
@@ -125,10 +116,13 @@ impl<F: Field> Libra<F> {
         if self.phase == ProverPhase::Uninitialized {
             let (arr, _) = Libra::initialize_phase_one(self.f1.clone(), self.f3.clone(), &self.g);
             self.a_hg = arr;
+            self.phase = ProverPhase::PhaseOne;
         }
     }
 
-    fn sum_a_hg(&mut self) -> F {
+    /// Computes the inner product of f2 and a_hg.
+    /// Which is the claim we will be working with in the sum-check protocol.
+    fn compute_inner_product(&mut self) -> F {
         let dim = self.a_hg.num_vars;
         let mut sum = F::zero();
         for i in 0..1 << dim {
