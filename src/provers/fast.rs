@@ -153,7 +153,7 @@ impl<F: Field> SumCheckProver<F> for FastProver<F> {
         sum
     }
 
-    fn get_verifier_function(&self) -> SparseMultilinearExtension<F> {
+    fn get_verifier_function(&mut self) -> SparseMultilinearExtension<F> {
         let mut s0 = F::zero();
         let mut s1 = F::zero();
         for mask in 0..self.p.len() {

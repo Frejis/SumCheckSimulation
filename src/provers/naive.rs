@@ -1,11 +1,10 @@
 use ark_ff::Field;
-use ark_poly::{DenseMultilinearExtension, MultilinearExtension, Polynomial, SparseMultilinearExtension, DenseUVPolynomial};
-use ark_poly::univariate::DensePolynomial;
+use ark_poly::{DenseMultilinearExtension, MultilinearExtension, Polynomial, SparseMultilinearExtension};
 use crate::gkr::gkr_round::GKRRound;
 use crate::gkr::layer::LayerReductionMessage;
 use crate::structures::circuit_structures::GateType;
 use crate::structures::data_structures::SumCheckProver;
-use crate::util::{_line_point, index_to_field_element, restrict_mle_to_line, interpolate_univariate};
+use crate::util::{index_to_field_element, restrict_mle_to_line, interpolate_univariate};
 
 pub struct NaiveProver<F: Field> {
     gkr_round: GKRRound<F>,
@@ -110,7 +109,7 @@ impl<F: Field> SumCheckProver<F> for NaiveProver<F> {
         self.calculate_sum_naive()
     }
 
-    fn get_verifier_function(&self) -> SparseMultilinearExtension<F> {
+    fn get_verifier_function(&mut self) -> SparseMultilinearExtension<F> {
         // clone existing functions.
         /*
         Iterate over all possible assignments of the bits.
@@ -169,7 +168,7 @@ impl<F: Field> SumCheckProver<F> for NaiveProver<F> {
 mod tests {
     use ark_bls12_381::Fr;
     use ark_ff::{One, Zero};
-    use ark_poly::{MultilinearExtension, Polynomial};
+    use ark_poly::{MultilinearExtension};
     use ark_std::{test_rng, UniformRand};
     use crate::gkr::gkr_round::GKRRound;
     use crate::structures::data_structures::SumCheckProver;

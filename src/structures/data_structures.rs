@@ -10,7 +10,7 @@ pub trait SumCheckProver<F: Field> {
     fn compute_sum(&mut self) -> F;
 
     // Creates a function that has one variable (meaning it fixes all other variables)
-    fn get_verifier_function(&self) -> SparseMultilinearExtension<F>;
+    fn get_verifier_function(&mut self) -> SparseMultilinearExtension<F>;
 
     fn fix_variable(&mut self, random_field_element: F);
 
