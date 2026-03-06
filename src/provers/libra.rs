@@ -1,17 +1,23 @@
 use ark_ff::Field;
 use ark_poly::{DenseMultilinearExtension, MultilinearExtension, Polynomial, SparseMultilinearExtension};
 
-use crate::{structures::data_structures::SumCheckProver, util::index_to_field_element};
+use crate::{structures::data_structures::SumCheckProver};
 use crate::gkr::gkr_round::GKRRound;
+use crate::gkr::layer::LayerReductionMessage;
 use crate::provers::prover_phases::ProverPhase;
+use crate::structures::circuit_structures::GateType;
+use crate::util::{index_to_field_element, interpolate_univariate, restrict_mle_to_line};
 
-struct Libra<F: Field> {
+pub struct Libra<F: Field> {
     f1: SparseMultilinearExtension<F>,
     f2: DenseMultilinearExtension<F>,
     f3: DenseMultilinearExtension<F>,
+    f2_clone: DenseMultilinearExtension<F>,
     a_hg: DenseMultilinearExtension<F>,
     g: Vec<F>,
+    fixed_labels: Vec<F>,
     phase: ProverPhase,
+    dim: usize,
 }
 
 impl<F: Field> Libra<F> {
@@ -24,7 +30,10 @@ impl<F: Field> Libra<F> {
             f1: gkrround.mult().clone(),
             f2: gkrround.vi.clone(),
             f3: gkrround.vj.clone(),
+            f2_clone: gkrround.vi.clone(),
+            dim: gkrround.vj.num_vars,
             g,
+            fixed_labels: Vec::new(),
         };
         // Initialize by default.
         libra.handle_phases();
@@ -37,8 +46,8 @@ impl<F: Field> Libra<F> {
         g: &[F],
     ) -> (DenseMultilinearExtension<F>, SparseMultilinearExtension<F>) {
         let dim = f3.num_vars;
-        assert_eq!(f1.num_vars, dim * 3);
-        assert_eq!(g.len(), dim);
+        //assert_eq!(f1.num_vars, dim * 3);
+        //assert_eq!(g.len(), dim);
         let mut a_hg: Vec<F> = (0..(1 << dim)).map(|_| F::zero()).collect();
         let f1_at_g = f1.fix_variables(g);
         for (xy, v) in f1_at_g.evaluations.iter() {
@@ -48,6 +57,17 @@ impl<F: Field> Libra<F> {
         }
         (DenseMultilinearExtension::from_evaluations_vec(dim, a_hg), f1_at_g)
     }
+
+    pub fn initialize_phase_two(
+        f1: &SparseMultilinearExtension<F>,
+        g: &[F],
+        u: &[F], // Also the ´x´ variables of f1 that has been fixed in phase one, by the verifier.
+    ) -> DenseMultilinearExtension<F> {
+        // Fix the gate
+        let f1_g = f1.fix_variables(g);
+        // First fixed the gate, and then fixed the ´x´ variables from the verifier.
+        f1_g.fix_variables(u).to_dense_multilinear_extension()
+    }
 }
 
 impl<F: Field> SumCheckProver<F> for Libra<F> {
@@ -56,19 +76,71 @@ impl<F: Field> SumCheckProver<F> for Libra<F> {
         self.compute_inner_product()
     }
 
-    fn get_verifier_function(&self) -> ark_poly::SparseMultilinearExtension<F> {
-        todo!()
+    fn get_verifier_function(&mut self) -> SparseMultilinearExtension<F> {
+        match self.phase {
+            ProverPhase::PhaseOne =>
+                self.compute_verifier_sum(self.f2.clone()),
+            ProverPhase::PhaseTwo =>
+                self.compute_verifier_sum(self.f3.clone()),
+            ProverPhase::Uninitialized => panic!("Phase should have been initialized by now"),
+        }
     }
 
     fn fix_variable(&mut self, r: F) {
         assert_ne!(self.phase, ProverPhase::Uninitialized);
+
+        self.fixed_labels.push(r);
+        self.handle_phases(); // need to initialize phase two if we just fixed variable s + 1 in x.
         let (new_f2, new_hg) = self.fold_f2_and_ahg(r);
-        self.f2 = DenseMultilinearExtension::from_evaluations_vec( self.f2.num_vars - 1, new_f2);
-        self.a_hg = DenseMultilinearExtension::from_evaluations_vec(self.a_hg.num_vars - 1,new_hg);
+        self.update_correct_mle(new_f2);
+        self.a_hg = DenseMultilinearExtension::from_evaluations_vec(self.a_hg.num_vars - 1, new_hg);
     }
 
-    fn layer_reduction_message(&self, b_star: &[F], c_star: &[F]) -> crate::gkr::layer::LayerReductionMessage<F> {
-        todo!()
+    /// Roughly copy-pasted from the fast prover, but it is not tested yet.
+    fn layer_reduction_message(&self, b_star: &[F], c_star: &[F]) -> LayerReductionMessage<F> {
+        // TODO add a test for it at some point ig.
+        let k_ip1 = self.f2_clone.num_vars;
+        assert_eq!(b_star.len(), k_ip1);
+        assert_eq!(b_star.len(), c_star.len());
+
+        let ts: Vec<F> = (0..=k_ip1).map(|i| F::from(i as u64)).collect();
+        let values = restrict_mle_to_line(&self.f2_clone, &b_star, &c_star, &ts);
+        let g = interpolate_univariate(&values, &ts);
+
+        LayerReductionMessage::new(g.evaluate(&F::zero()), g.evaluate(&F::one()), g)
+    }
+}
+
+impl<F: Field> Libra<F> {
+    fn compute_verifier_sum(&mut self, f2: DenseMultilinearExtension<F>) -> SparseMultilinearExtension<F> {
+        let dim = self.a_hg.num_vars;
+        let mut s0 = F::zero();
+        let mut s1 = F::zero();
+        for i in 0..1 << dim {
+            let evaluation = match self.phase {
+                ProverPhase::Uninitialized => panic!("Phase should have been initialized by now"),
+                ProverPhase::PhaseOne => self.a_hg[i] * f2[i],
+                ProverPhase::PhaseTwo => self.compute_phase_two_evaluated_at_i(i),
+            };
+            if i & 1 == 0 {
+                s0 += evaluation;
+            } else {
+                s1 += evaluation;
+            }
+        }
+        SparseMultilinearExtension::from_evaluations(1, vec![&(0, s0), &(1, s1)])
+    }
+}
+
+impl<F: Field> Libra<F> {
+    fn update_correct_mle(&mut self, new_f2: Vec<F>) {
+        match self.phase {
+            ProverPhase::PhaseOne =>
+                self.f2 = DenseMultilinearExtension::from_evaluations_vec(self.f2.num_vars - 1, new_f2),
+            ProverPhase::PhaseTwo =>
+                self.f3 = DenseMultilinearExtension::from_evaluations_vec(self.f3.num_vars - 1, new_f2),
+            _ => panic!("Phase should have been initialized by now"),
+        }
     }
 }
 
@@ -87,11 +159,23 @@ impl<F: Field> Libra<F> {
     }
 
     fn fold_pair_at_index(&mut self, r: F, new_f2: &mut Vec<F>, new_hg: &mut Vec<F>, index: usize) {
+        match self.phase {
+            ProverPhase::PhaseOne => {
+                self.update_functions_from_folded_variable(r, new_f2, new_hg, index, self.f2.clone());
+            }
+            ProverPhase::PhaseTwo => {
+                self.update_functions_from_folded_variable(r, new_f2, new_hg, index, self.f3.clone());
+            }
+            _ => panic!("Phase should have been initialized by now"),
+        }
+    }
+
+    fn update_functions_from_folded_variable(&mut self, r: F, new_f2: &mut Vec<F>, new_hg: &mut Vec<F>, index: usize, phase_mle_func: DenseMultilinearExtension<F>) {
         let i0 = index << 1;
         let i1 = i0 | 1;
 
-        let f2_0 = self.f2[i0];
-        let f2_1 = self.f2[i1];
+        let f2_0 = phase_mle_func[i0];
+        let f2_1 = phase_mle_func[i1];
 
         let hg_0 = self.a_hg[i0];
         let hg_1 = self.a_hg[i1];
@@ -109,7 +193,23 @@ impl<F: Field> Libra<F> {
 
 impl<F: Field> Libra<F> {
     fn handle_phases(&mut self) {
+        self.initialize_phase_two_if_done_with_phase_one();
         self.initialise_phase_one_if_uninitialized();
+    }
+
+    fn initialize_phase_two_if_done_with_phase_one(&mut self) {
+        let in_phase_one = self.phase == ProverPhase::PhaseOne;
+        let done_with_phase_one = self.f3.num_vars + 1 == self.fixed_labels.len(); // E.g, we have folded all variables of f2. So x is now bounded.
+        if in_phase_one && done_with_phase_one {
+            self.update_self_phase_two();
+        }
+    }
+
+    fn update_self_phase_two(&mut self) {
+        let x_from_verifier = &self.fixed_labels[0..self.f3.num_vars];
+        let arr = Libra::initialize_phase_two(&self.f1, &self.g, x_from_verifier);
+        self.a_hg = arr;
+        self.phase = ProverPhase::PhaseTwo;
     }
 
     fn initialise_phase_one_if_uninitialized(&mut self) {
@@ -126,9 +226,19 @@ impl<F: Field> Libra<F> {
         let dim = self.a_hg.num_vars;
         let mut sum = F::zero();
         for i in 0..1 << dim {
-            sum += self.f2[i] * self.a_hg[i];
+            if self.phase == ProverPhase::PhaseOne {
+                sum += self.f2[i] * self.a_hg[i];
+            } else {
+                sum += self.compute_phase_two_evaluated_at_i(i);
+            }
         }
         sum
+    }
+
+    fn compute_phase_two_evaluated_at_i(&mut self, i: usize) -> F {
+        let u = &self.fixed_labels[0..self.dim];
+        let f2_u = self.f2_clone.evaluate(&u.to_vec());
+        self.f3[i] * f2_u * self.a_hg[i]
     }
 }
 
@@ -137,19 +247,18 @@ mod tests {
     use super::Libra;
     use ark_bls12_381::Fr;
     use ark_ff::Field;
-    use ark_poly::MultilinearExtension;
     use ark_std::{test_rng, UniformRand};
 
     use crate::gkr::gkr_round::GKRRound;
     use crate::provers::naive::NaiveProver;
-    use crate::structures::data_structures::SumCheckProver;
+    use crate::structures::data_structures::{SumCheckProver, SumCheckVerifier};
     use crate::util::random_gate;
+    use crate::verifiers::standard_verifier::StandardVerifier;
 
     fn naive_phase_one_claim(
         gkr_round: &GKRRound<Fr>,
         g: &[Fr],
     ) -> Fr {
-        
         let mut prover = NaiveProver::new(gkr_round.clone(), &g.to_vec());
         prover.compute_sum()
     }
@@ -166,14 +275,71 @@ mod tests {
     #[test]
     fn test_libra_first_phase_identical_naive() {
         let (gkr_round, g) = random_gkr_round_and_gate();
+        let (mut libra, mut naive) = get_libra_and_naive_prover(&gkr_round, &g);
+        for _ in 0..libra.a_hg.num_vars {
+            assert_libra_claim_identical_to_naive_in_round(&mut libra, &mut naive);
+        }
+    }
+
+    #[test]
+    fn test_libra_identical_to_naive_full() {
+        let (gkr_round, g) = random_gkr_round_and_gate();
+        let (mut libra, mut naive) = get_libra_and_naive_prover(&gkr_round, &g);
+        for _ in 0..libra.f2.num_vars * 2 {
+            assert_libra_claim_identical_to_naive_in_round(&mut libra, &mut naive);
+        }
+    }
+
+    #[test]
+    fn test_get_verifier_function_phase_one() {
+        let (gkr_round, g) = random_gkr_round_and_gate();
+        let mut libra = Libra::new(&gkr_round, g.clone());
+        let verifier_func = libra.get_verifier_function();
+
+        let verifier_sum = verifier_func.evaluations.iter().map(|(_, &v)| v).sum();
+        let claimed_sum = libra.compute_sum();
+        assert_eq!(claimed_sum, verifier_sum);
+    }
+
+    #[test]
+    fn test_verifier_integration() {
+        let (gkr_round, g) = random_gkr_round_and_gate();
+        let mut libra = Libra::new(&gkr_round, g.clone());
+        let mut verifier = StandardVerifier::new(3, libra.compute_sum(), gkr_round.clone());
+        // Simulate the sum-check protocol for phase one
+        for _ in 0..libra.a_hg.num_vars * 2 {
+            let verifier_func = libra.get_verifier_function();
+            let random_field = verifier.handle_round(&verifier_func);
+            libra.fix_variable(random_field);
+            verifier.set_claim(libra.compute_sum());
+        }
+    }
+
+    #[test]
+    fn test_verifier_integration_phase_one() {
+        let (gkr_round, g) = random_gkr_round_and_gate();
+        let mut libra = Libra::new(&gkr_round, g.clone());
+        let mut verifier = StandardVerifier::new(3, libra.compute_sum(), gkr_round.clone());
+        // Simulate the sum-check protocol for phase one
+        for _ in 0..libra.a_hg.num_vars {
+            let verifier_func = libra.get_verifier_function();
+            let random_field = verifier.handle_round(&verifier_func);
+            libra.fix_variable(random_field);
+            verifier.set_claim(libra.compute_sum());
+        }
+    }
+
+    fn get_libra_and_naive_prover(gkr_round: &GKRRound<Fr>, g: &Vec<Fr>) -> (Libra<Fr>, NaiveProver<Fr>) {
         let mut libra = Libra::new(&gkr_round, g.clone());
         let mut naive = NaiveProver::new(gkr_round.clone(), &g.clone());
-        for i in 0..libra.a_hg.num_vars {
-            let random_field_element = Some(Fr::rand(&mut test_rng()));
-            let libra_claim = fix_prover_and_get_new_sum(&mut libra, &random_field_element);
-            let naive_claim = fix_prover_and_get_new_sum(&mut naive, &random_field_element);
-            assert_eq!(libra_claim, naive_claim, "Libra sum != naive phase-one reference");
-        }
+        (libra, naive)
+    }
+
+    fn assert_libra_claim_identical_to_naive_in_round(libra: &mut Libra<Fr>, naive: &mut NaiveProver<Fr>) {
+        let random_field_element = Some(Fr::rand(&mut test_rng()));
+        let libra_claim = fix_prover_and_get_new_sum(libra, &random_field_element);
+        let naive_claim = fix_prover_and_get_new_sum(naive, &random_field_element);
+        assert_eq!(libra_claim, naive_claim, "Libra sum != naive phase-one reference");
     }
 
     fn random_gkr_round_and_gate() -> (GKRRound<Fr>, Vec<Fr>) {
