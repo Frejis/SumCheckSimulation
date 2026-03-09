@@ -88,7 +88,6 @@ where
     let k0 = log2_pow2(circuit.layers[0].values.len());
 
     let mut current_r = random_gate::<F>(k0);
-    let mut current_claim = circuit.layers[0].value_extension(k0).evaluate(&current_r);
 
     // For each non-input layer i, prove claim about W_i(r_i) via layer i+1.
     for i in 0..(circuit.layers.len() - 1) {
@@ -103,14 +102,17 @@ where
 
         let round_i = GKRRound::new(&mult_i, &w_next, &w_next, &GateType::Mul);
 
+        let time = Instant::now();
         let mut prover = prover_ctor(round_i.clone(), current_r.clone());
-        let mut verifier = StandardVerifier::new(3, current_claim, round_i);
-
+        prover_time_spent += time.elapsed();
+        let time = Instant::now();
+        let mut verifier = StandardVerifier::new(3, prover.compute_sum(), round_i);
+        verifier_time_spent += time.elapsed();
+        println!("Time taken to construct prover and verifier for layer {}: {:?}", i, time.elapsed());
         let ((next_r, next_claim), p_time, v_time) =
             GKRLayerDriver::run_layer(&mut prover, &mut verifier, k_next);
 
         current_r = next_r;
-        current_claim = next_claim;
         prover_time_spent += p_time;
         verifier_time_spent += v_time;
     }

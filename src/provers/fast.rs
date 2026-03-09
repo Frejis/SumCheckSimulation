@@ -25,8 +25,9 @@ impl<F: Field> FastProver<F> {
             panic!();
         }
         let should_initialize_phase_one = gkr_round.vi.num_vars > 0;
+        let fixed_mult = gkr_round.mult().fix_variables(&*gate);
         let mut temp_res = Self {
-            fixed_mult: gkr_round.mult().fix_variables(&*gate), // I don't think i needed to call clone.
+            fixed_mult,
             p: Vec::new(),
             q: Vec::new(),
             gkr_round: gkr_round.clone(),
@@ -35,7 +36,7 @@ impl<F: Field> FastProver<F> {
             layer_value_mle: gkr_round.vi,
         };
         if should_initialize_phase_one {
-            temp_res.initialize_phase_one()
+            temp_res.initialize_phase_one();
         }
         temp_res
     }
