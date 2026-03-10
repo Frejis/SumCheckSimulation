@@ -5,8 +5,7 @@ use crate::{structures::data_structures::SumCheckProver};
 use crate::gkr::gkr_round::GKRRound;
 use crate::gkr::layer::LayerReductionMessage;
 use crate::provers::prover_phases::ProverPhase;
-use crate::structures::circuit_structures::GateType;
-use crate::util::{index_to_field_element, interpolate_univariate, restrict_mle_to_line};
+use crate::util::{interpolate_univariate, restrict_mle_to_line};
 
 pub struct Libra<F: Field> {
     f1: SparseMultilinearExtension<F>,

@@ -171,8 +171,8 @@ mod tests {
     use ark_poly::{MultilinearExtension};
     use ark_std::{test_rng, UniformRand};
     use crate::gkr::gkr_round::GKRRound;
+    use crate::provers::naive::NaiveProver;
     use crate::structures::data_structures::SumCheckProver;
-    use crate::naive::NaiveProver;
     use crate::util;
     use crate::util::index_to_field_element;
 

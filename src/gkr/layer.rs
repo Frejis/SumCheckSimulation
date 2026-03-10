@@ -1,8 +1,7 @@
 use ark_ff::Field;
-use ark_poly::{DenseMultilinearExtension, Polynomial, SparseMultilinearExtension};
+use ark_poly::Polynomial;
 use ark_poly::univariate::DensePolynomial;
 use crate::structures::circuit_structures::Gate;
-use crate::util::_line_point;
 
 #[derive(Clone, Debug)]
 pub struct LayerReductionMessage<F: Field> {

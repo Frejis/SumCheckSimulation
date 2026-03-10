@@ -1,11 +1,9 @@
 use std::time::Duration;
 use ark_bls12_381::Fr;
-use ark_ff::Field;
 use ark_std::test_rng;
 use structures::data_structures::SumCheckProver;
 use crate::gkr::gkr_protocol::simulate_gkr_circuit;
 use crate::gkr::gkr_round::GKRRound;
-use crate::provers::{fast, naive};
 use crate::provers::fast::FastProver;
 use crate::provers::libra::Libra;
 use crate::provers::naive::NaiveProver;
@@ -31,7 +29,7 @@ fn simulate_circuit_and_print_results() {
 
     // Benchmark each prover on the same circuit set
     let fast_result = benchmark_prover_on_circuit_set("Fast", &config, &circuit_set, fast_prover_ctor);
-    let naive_result = benchmark_prover_on_circuit_set("Naive", &config, &circuit_set, naive_prover_ctor);
+    let _naive_result = benchmark_prover_on_circuit_set("Naive", &config, &circuit_set, naive_prover_ctor);
     let libra_result = benchmark_prover_on_circuit_set("Libra", &config, &circuit_set, libra_prover_ctor);
 
     print_benchmark_report(&config, &[fast_result, libra_result]);
@@ -248,16 +246,14 @@ mod generic_tests {
     use ark_ff::Field;
     use ark_poly::MultilinearExtension;
     use crate::structures::data_structures::{SumCheckProver, SumCheckVerifier};
-    use crate::fast::FastProver;
     use crate::gkr::gkr_round::GKRRound;
-    use crate::naive::NaiveProver;
+    use crate::provers::fast::FastProver;
+    use crate::provers::naive::NaiveProver;
     use crate::util::random_gate;
     use crate::verifiers::standard_verifier::StandardVerifier;
 
     #[test]
     fn test_verifier_first_round() {
-        // 7 variables 3 seconds.... 8 variables 23!!! seconds!??! :OOO whaaa
-
         let gkr_round: GKRRound<Fr> = GKRRound::new_rand();
         let random_gate = random_gate(gkr_round.gate_labes());
         let mut prover = NaiveProver::new(gkr_round.clone(), &random_gate);

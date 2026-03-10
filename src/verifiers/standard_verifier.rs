@@ -1,7 +1,6 @@
 use ark_ff::Field;
 use ark_poly::{Polynomial, SparseMultilinearExtension};
-use ark_std::test_rng;
-use ark_std::rand::{Rng, SeedableRng, rngs::StdRng};
+use ark_std::rand::{SeedableRng, rngs::StdRng};
 use crate::gkr::gkr_round::GKRRound;
 use crate::gkr::layer::LayerReductionMessage;
 use crate::structures::data_structures::SumCheckVerifier;

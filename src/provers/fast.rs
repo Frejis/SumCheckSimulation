@@ -215,9 +215,9 @@ mod test {
     use ark_std::{test_rng, UniformRand};
     use crate::structures::circuit_structures::GateType;
     use crate::structures::data_structures::{SumCheckProver, SumCheckVerifier};
-    use crate::fast::FastProver;
     use crate::gkr::gkr_round::GKRRound;
-    use crate::naive::NaiveProver;
+    use crate::provers::fast::FastProver;
+    use crate::provers::naive::NaiveProver;
     use crate::util::random_gate;
     use crate::verifiers::standard_verifier::StandardVerifier;
 

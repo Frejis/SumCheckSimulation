@@ -1,6 +1,5 @@
 use std::time::{Duration, Instant};
 use ark_ff::Field;
-use ark_poly::Polynomial;
 use crate::gkr::gkr_round::GKRRound;
 use crate::structures::circuit_structures::{GKRCircuit, GateType};
 use crate::structures::data_structures::{SumCheckProver, SumCheckVerifier};
@@ -109,7 +108,7 @@ where
         let mut verifier = StandardVerifier::new(3, prover.compute_sum(), round_i);
         verifier_time_spent += time.elapsed();
         println!("Time taken to construct prover and verifier for layer {}: {:?}", i, time.elapsed());
-        let ((next_r, next_claim), p_time, v_time) =
+        let ((next_r, _next_claim), p_time, v_time) =
             GKRLayerDriver::run_layer(&mut prover, &mut verifier, k_next);
 
         current_r = next_r;
