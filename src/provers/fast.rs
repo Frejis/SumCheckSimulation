@@ -50,7 +50,7 @@ impl<F: Field> FastProver<F> {
 
     fn initialize_phase_one(&mut self) {
         match self.gkr_round.gate_type {
-            GateType::Add => self.init_phase_one_add(),
+            GateType::Add => todo!(),
             GateType::Mul => self.init_phase_one_mult()
         }
     }
@@ -88,51 +88,24 @@ impl<F: Field> FastProver<F> {
         self.q[i] = fr * self.gkr_round.vj.evaluate(&field_index);
     }
 
-    fn init_phase_one_add(&mut self) {
-        let first_half = self.gkr_round.vi().num_vars;
-        let second_half = self.gkr_round.vj().num_vars;
-        let size = 1 << first_half;
-
-        self.init_p_q_zero(size);
-
-        for i in 0..size {
-            let i_index = index_to_field_element(i, first_half);
-            let vi_val = self.gkr_round.vi().evaluate(&i_index);
-
-            for j in 0..(1 << second_half) {
-                let j_index = index_to_field_element(j, second_half);
-                let vj_value = self.gkr_round.vj().evaluate(&j_index);
-
-                let combined_vec = Self::create_combined_vec_array(&i_index, &j_index);
-                let mult_val = self.fixed_mult.evaluate(&combined_vec);
-
-                self.p[i] += mult_val * (vj_value + vi_val);
-            }
-        }
-    }
-
     fn init_phase_one_mult(&mut self) {
         // TODO currently initializing in the naive way.
-        let s = self.gkr_round.vi().num_vars; // S denotes the bit label length for gates.
-        let size = 1 << s;
+        let dim = self.gkr_round.vi().num_vars;
+        let size = 1 << dim;
 
         self.p = vec![F::zero(); size];
         self.q = vec![F::zero(); size];
 
+        let evaluations = self.fixed_mult.evaluations.iter();
+        for (xy, value) in evaluations {
+            let x = xy & ((1 << dim) - 1);
+            let y = xy >> dim;
+            self.p[x] += *value * self.gkr_round.vj[y];
+        }
         for i in 0..size {
-            let i_index = index_to_field_element(i, s);
+            let i_index = index_to_field_element(i, dim);
             let vi_val = self.gkr_round.vi().evaluate(&i_index);
             self.q[i] = vi_val;
-
-            for j in 0..(1 << s) {
-                let j_index = index_to_field_element(j, s);
-                let vj_value = self.gkr_round.vj().evaluate(&j_index);
-
-                let combined_vec = Self::create_combined_vec_array(&i_index, &j_index);
-                let mult_val = self.fixed_mult.evaluate(&combined_vec);
-
-                self.p[i] += mult_val * vj_value;
-            }
         }
     }
 }
