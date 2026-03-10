@@ -19,13 +19,13 @@ pub struct FastProver<F: Field> {
 impl<F: Field> FastProver<F> {
     pub fn new(
         gkr_round: GKRRound<F>,
-        gate: &Vec<F>,
+        gate: &[F],
     ) -> Self {
         if gkr_round.gate_type == GateType::Add {
             panic!();
         }
         let should_initialize_phase_one = gkr_round.vi.num_vars > 0;
-        let fixed_mult = gkr_round.mult().fix_variables(&*gate);
+        let fixed_mult = gkr_round.mult().fix_variables(gate);
         let mut temp_res = Self {
             fixed_mult,
             p: Vec::new(),
@@ -39,13 +39,6 @@ impl<F: Field> FastProver<F> {
             temp_res.initialize_phase_one();
         }
         temp_res
-    }
-
-    fn create_combined_vec_array(first_arr: &Vec<F>, last_arr: &Vec<F>) -> Vec<F> {
-        let mut vec_res = Vec::with_capacity(first_arr.len() + last_arr.len());
-        vec_res.extend_from_slice(first_arr);
-        vec_res.extend_from_slice(last_arr);
-        vec_res
     }
 
     fn initialize_phase_one(&mut self) {
@@ -79,13 +72,6 @@ impl<F: Field> FastProver<F> {
     fn init_p_q_zero(&mut self, size: usize) {
         self.p = vec![F::zero(); size];
         self.q = vec![F::zero(); size];
-    }
-
-    fn update_arrays_phase_two_mult(&mut self, fixed_mult: SparseMultilinearExtension<F>, fr: F, i: usize) {
-        let field_index: Vec<F> = index_to_field_element(i, self.gkr_round.vj.num_vars);
-        let combined_vec = Self::create_combined_vec_array(&self.fixed_variables, &field_index);
-        self.p[i] = fixed_mult.evaluate(&combined_vec);
-        self.q[i] = fr * self.gkr_round.vj.evaluate(&field_index);
     }
 
     fn init_phase_one_mult(&mut self) {
@@ -151,7 +137,7 @@ impl<F: Field> SumCheckProver<F> for FastProver<F> {
         assert_eq!(b_star.len(), c_star.len());
 
         let ts: Vec<F> = (0..=k_ip1).map(|i| F::from(i as u64)).collect();
-        let values = restrict_mle_to_line(&self.layer_value_mle, &b_star, &c_star, &ts);
+        let values = restrict_mle_to_line(&self.layer_value_mle, b_star, c_star, &ts);
         let g = interpolate_univariate(&values, &ts);
 
         LayerReductionMessage::new(g.evaluate(&F::zero()), g.evaluate(&F::one()), g)

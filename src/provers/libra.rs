@@ -103,7 +103,7 @@ impl<F: Field> SumCheckProver<F> for Libra<F> {
         assert_eq!(b_star.len(), c_star.len());
 
         let ts: Vec<F> = (0..=k_ip1).map(|i| F::from(i as u64)).collect();
-        let values = restrict_mle_to_line(&self.f2_clone, &b_star, &c_star, &ts);
+        let values = restrict_mle_to_line(&self.f2_clone, b_star, c_star, &ts);
         let g = interpolate_univariate(&values, &ts);
 
         LayerReductionMessage::new(g.evaluate(&F::zero()), g.evaluate(&F::one()), g)

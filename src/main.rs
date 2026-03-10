@@ -193,33 +193,6 @@ where
     }
 }
 
-fn benchmark_backend<P>(
-    backend: &'static str,
-    config: &BenchmarkConfig,
-    prover_ctor: fn(GKRRound<Fr>, Vec<Fr>) -> P,
-) -> BenchmarkResult
-where
-    P: SumCheckProver<Fr>,
-{
-    let mut rng = test_rng();
-    let mut total_prover_time = Duration::ZERO;
-    let mut total_verifier_time = Duration::ZERO;
-
-    for _ in 0..config.trials {
-        let circuit = GKRCircuit::random(config.layer_sizes.as_slice(), &mut rng);
-        let (prover_time, verifier_time) = simulate_gkr_circuit(circuit, prover_ctor);
-        total_prover_time += prover_time;
-        total_verifier_time += verifier_time;
-    }
-
-    BenchmarkResult {
-        backend,
-        total_prover_time,
-        total_verifier_time,
-        trials: config.trials,
-    }
-}
-
 fn print_benchmark_report(config: &BenchmarkConfig, results: &[BenchmarkResult]) {
     println!("================ GKR Circuit Benchmark ================");
     println!("Layers: {:?}", config.layer_sizes);

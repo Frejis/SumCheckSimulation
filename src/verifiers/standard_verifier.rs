@@ -69,8 +69,7 @@ impl<F: Field> SumCheckVerifier<F> for StandardVerifier<F> {
 
     fn check_claimed_value(&self, gx: &SparseMultilinearExtension<F>) -> bool {
         let checked_claim: F = gx.evaluations.iter().map(|(_, &v)| v).sum();
-        let res = checked_claim == self.claimed_value;
-        res
+        checked_claim == self.claimed_value
     }
 
     fn handle_round(&mut self, fx: &SparseMultilinearExtension<F>) -> F {

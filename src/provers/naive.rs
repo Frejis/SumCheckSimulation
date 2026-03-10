@@ -15,7 +15,7 @@ pub struct NaiveProver<F: Field> {
 impl<F: Field> NaiveProver<F> {
     pub fn new(
         gkr_round: GKRRound<F>,
-        gate: &Vec<F>,
+        gate: &[F],
     ) -> NaiveProver<F> {
         let fixed_mult = gkr_round.mult().fix_variables(gate);
         NaiveProver {
@@ -157,7 +157,7 @@ impl<F: Field> SumCheckProver<F> for NaiveProver<F> {
         assert_eq!(b_star.len(), c_star.len());
 
         let ts: Vec<F> = (0..=k_ip1).map(|i| F::from(i as u64)).collect();
-        let values = restrict_mle_to_line(&self.layer_value_mle, &b_star, &c_star, &ts);
+        let values = restrict_mle_to_line(&self.layer_value_mle, b_star, c_star, &ts);
         let g = interpolate_univariate(&values, &ts);
 
         LayerReductionMessage::new(g.evaluate(&F::zero()), g.evaluate(&F::one()), g)

@@ -1,7 +1,5 @@
-use rand::Rng;
 use ark_ff::Field;
 use ark_poly::{DenseMultilinearExtension, SparseMultilinearExtension};
-use ark_std::test_rng;
 use crate::structures::circuit_structures::GateType;
 use crate::util::random_gkr_round_gates;
 
@@ -69,11 +67,7 @@ impl<F: Field> GKRRound<F> {
     /// This function should only be used for testing purposes.
     pub fn new_rand() -> GKRRound<F> {
 
-        let typ = if test_rng().r#gen::<bool>() {
-            GateType::Mul // Should be an `Add` but rn fast_prover does not work with add.
-        } else {
-            GateType::Mul
-        };
+        let typ = GateType::Mul;
         let (mult, vi, vj) = random_gkr_round_gates(7);
         GKRRound {
             mult,

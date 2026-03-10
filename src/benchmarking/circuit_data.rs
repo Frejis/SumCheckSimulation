@@ -1,7 +1,6 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 use ark_ff::Field;
-use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use serde::{Deserialize, Serialize};
 use crate::structures::circuit_structures::Gate;
 
@@ -128,6 +127,12 @@ impl BenchmarkCircuitSet {
     /// Get an iterator over all circuits
     pub fn iter<F: Field>(&self) -> impl Iterator<Item = crate::structures::circuit_structures::GKRCircuit<F>> + '_ {
         self.circuits.iter().map(|ser| ser.to_circuit())
+    }
+}
+
+impl Default for BenchmarkCircuitSet {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
