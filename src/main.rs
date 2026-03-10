@@ -34,7 +34,7 @@ fn simulate_circuit_and_print_results() {
     let naive_result = benchmark_prover_on_circuit_set("Naive", &config, &circuit_set, naive_prover_ctor);
     let libra_result = benchmark_prover_on_circuit_set("Libra", &config, &circuit_set, libra_prover_ctor);
 
-    print_benchmark_report(&config, &[fast_result, naive_result, libra_result]);
+    print_benchmark_report(&config, &[fast_result, libra_result]);
 }
 
 #[derive(Clone)]
@@ -46,8 +46,8 @@ struct BenchmarkConfig {
 impl Default for BenchmarkConfig {
     fn default() -> Self {
         Self {
-            layer_sizes: vec![1, 2, 4, 8, 16, 32, 64, 128],
-            trials: 1,
+            layer_sizes: vec![1, 2, 4, 8, 16, 32, 64, 128, 256],
+            trials: 2,
         }
     }
 }

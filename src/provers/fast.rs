@@ -89,13 +89,10 @@ impl<F: Field> FastProver<F> {
     }
 
     fn init_phase_one_mult(&mut self) {
-        // TODO currently initializing in the naive way.
         let dim = self.gkr_round.vi().num_vars;
         let size = 1 << dim;
-
         self.p = vec![F::zero(); size];
         self.q = vec![F::zero(); size];
-
         let evaluations = self.fixed_mult.evaluations.iter();
         for (xy, value) in evaluations {
             let x = xy & ((1 << dim) - 1);
@@ -120,7 +117,7 @@ impl<F: Field> SumCheckProver<F> for FastProver<F> {
         let mut sum = F::zero();
         for i in 0..self.p.len() {
             match self.gkr_round.gate_type {
-                GateType::Add => sum += self.p[i],
+                GateType::Add => todo!(),
                 GateType::Mul => sum += self.p[i] * self.q[i],
             }
         }
