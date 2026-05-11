@@ -242,7 +242,7 @@ mod generic_tests {
         let gkr_round: GKRRound<Fr> = GKRRound::new_rand_var_size(5);
         let random_gate = random_gate(gkr_round.gate_labes());
         let prover = NaiveProver::new(gkr_round.clone(), &random_gate);
-        _compare_verifier_sum(gkr_round, prover);
+        compare_verifier_sum(gkr_round, prover);
     }
 
     #[test]
@@ -250,10 +250,10 @@ mod generic_tests {
         let gkr_round: GKRRound<Fr> = GKRRound::new_rand_var_size(5);
         let random_gate = random_gate(gkr_round.gate_labes());
         let prover = FastProver::new(gkr_round.clone(), &random_gate);
-        _compare_verifier_sum(gkr_round, prover);
+        compare_verifier_sum(gkr_round, prover);
     }
 
-    fn _compare_verifier_sum<F: Field, P: SumCheckProver<F>>(gkr_round: GKRRound<F>, mut prover: P) {
+    fn compare_verifier_sum<F: Field, P: SumCheckProver<F>>(gkr_round: GKRRound<F>, mut prover: P) {
         let mut verifier = StandardVerifier::new(3, prover.compute_sum(), gkr_round.clone());
         let mut prover_time_spent = Duration::ZERO;
         let mut verifier_time_spent = Duration::ZERO;
@@ -283,6 +283,6 @@ mod generic_tests {
         let gkr_round: GKRRound<Fr> = GKRRound::new_rand_var_size(8);
         assert_eq!(gkr_round.vi.num_vars, 8);
         assert_eq!(gkr_round.vj.num_vars, 8);
-        assert_eq!(gkr_round.pred().num_vars(), 24);
+        assert_eq!(gkr_round.mult_predicate().num_vars(), 24);
     }
 }

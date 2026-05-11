@@ -5,7 +5,8 @@ use crate::util::random_gkr_round_gates;
 
 #[derive(Clone)]
 pub struct GKRRound<F: Field> {
-    pred: SparseMultilinearExtension<F>,
+    mult_predicate: SparseMultilinearExtension<F>,
+    add_predicate: SparseMultilinearExtension<F>,
     pub(crate) vi: DenseMultilinearExtension<F>,
     pub(crate) vj: DenseMultilinearExtension<F>,
     gate_labes: usize,
@@ -13,8 +14,12 @@ pub struct GKRRound<F: Field> {
 }
 
 impl<F: Field> GKRRound<F> {
-    pub fn set_mult(&mut self, mult: SparseMultilinearExtension<F>) {
-        self.pred = mult;
+    pub fn set_mult_predicate(&mut self, mult_predicate: SparseMultilinearExtension<F>) {
+        self.mult_predicate = mult_predicate;
+    }
+
+    pub fn set_add_predicate(&mut self, add_predicate: SparseMultilinearExtension<F>) {
+        self.add_predicate = add_predicate;
     }
 
     pub fn set_vi(&mut self, vi: DenseMultilinearExtension<F>) {
@@ -28,11 +33,19 @@ impl<F: Field> GKRRound<F> {
     pub fn set_gate_labes(&mut self, gate_labes: usize) {
         self.gate_labes = gate_labes;
     }
+
+    pub fn set_gate_type(&mut self, gate_type: GateType) {
+        self.gate_type = gate_type;
+    }
 }
 
 impl<F: Field> GKRRound<F> {
-    pub fn pred(&self) -> &SparseMultilinearExtension<F> {
-        &self.pred
+    pub fn mult_predicate(&self) -> &SparseMultilinearExtension<F> {
+        &self.mult_predicate
+    }
+
+    pub fn add_predicate(&self) -> &SparseMultilinearExtension<F> {
+        &self.add_predicate
     }
 
     pub fn vi(&self) -> &DenseMultilinearExtension<F> {
@@ -46,17 +59,23 @@ impl<F: Field> GKRRound<F> {
     pub fn gate_labes(&self) -> usize {
         self.gate_labes
     }
+
+    pub fn gate_type(&self) -> &GateType {
+        &self.gate_type
+    }
 }
 
 impl<F: Field> GKRRound<F> {
     pub fn new(
-        pred: &SparseMultilinearExtension<F>,
+        mult_predicate: &SparseMultilinearExtension<F>,
+        add_predicate: &SparseMultilinearExtension<F>,
         vi: &DenseMultilinearExtension<F>,
         vj: &DenseMultilinearExtension<F>,
         gate_type: &GateType,
     ) -> GKRRound<F> {
         GKRRound {
-            pred: pred.clone(),
+            mult_predicate: mult_predicate.clone(),
+            add_predicate: add_predicate.clone(),
             gate_labes: vi.num_vars,
             vi: vi.clone(),
             vj: vj.clone(),
@@ -68,9 +87,10 @@ impl<F: Field> GKRRound<F> {
     pub fn new_rand() -> GKRRound<F> {
 
         let typ = GateType::Mul;
-        let (pred, vi, vj) = random_gkr_round_gates(7);
+        let (mult_pred, add_pred, vi, vj) = random_gkr_round_gates(7);
         GKRRound {
-            pred,
+            mult_predicate: mult_pred,
+            add_predicate: add_pred,
             vi,
             vj,
             gate_labes: 7,
@@ -82,9 +102,10 @@ impl<F: Field> GKRRound<F> {
     pub fn new_rand_var_size(var_size: usize) -> GKRRound<F> {
 
         let typ = GateType::Mul; // TODO update this when the `Add` functionality gets implemented.
-        let (pred, vi, vj) = random_gkr_round_gates(var_size);
+        let (mult_pred, add_pred, vi, vj) = random_gkr_round_gates(var_size);
         GKRRound {
-            pred,
+            mult_predicate: mult_pred,
+            add_predicate: add_pred,
             vi,
             vj,
             gate_labes: var_size,

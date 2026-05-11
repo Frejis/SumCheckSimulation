@@ -17,7 +17,7 @@ impl<F: Field> NaiveProver<F> {
         gkr_round: GKRRound<F>,
         gate: &[F],
     ) -> NaiveProver<F> {
-        let fixed_mult = gkr_round.pred().fix_variables(gate);
+        let fixed_mult = gkr_round.mult_predicate().fix_variables(gate);
         NaiveProver {
             layer_value_mle: gkr_round.vi.clone(),
             gkr_round,
@@ -59,7 +59,6 @@ impl<F: Field> NaiveProver<F> {
         &self,
     ) -> F {
         let vi_variables = self.gkr_round.vi().num_vars;
-
         let f1_g = &self.fixed_mult;
         let mut sum_xy = F::zero();
         for x in 0..(1 << vi_variables) {
@@ -78,25 +77,29 @@ impl<F: Field> NaiveProver<F> {
     }
 
     pub fn ark_compute_sum_naive(
-        f1: &SparseMultilinearExtension<F>,
+        mult_predicate: &SparseMultilinearExtension<F>,
+        add_predicate: &SparseMultilinearExtension<F>,
         f2: &DenseMultilinearExtension<F>,
         f3: &DenseMultilinearExtension<F>,
         g: &[F],
         gate_type: &GateType
     ) -> F {
         let dim = f2.num_vars;
-        let f1_g = f1.fix_variables(g);
+        let mult_predicate_at_gate = mult_predicate.fix_variables(g);
+        let add_predicate_at_gate = add_predicate.fix_variables(g);
         let mut sum_xy = F::zero();
         for x in 0..(1 << dim) {
             let f2_x = f2[x];
-            let f1_gx = f1_g
+            let mf1_gx = mult_predicate_at_gate
+                .fix_variables(&index_to_field_element(x, dim))
+                .to_dense_multilinear_extension();
+            let  af1_gx = add_predicate_at_gate
                 .fix_variables(&index_to_field_element(x, dim))
                 .to_dense_multilinear_extension();
             for y in 0..(1 << dim) {
-                match gate_type {
-                    GateType::Add => sum_xy += f1_gx[y] * (f2_x + f3[y]),
-                    GateType::Mul => sum_xy += f1_gx[y] * f2_x * f3[y],
-                }
+                let fst_add_term = af1_gx[y] * f2[x];
+                let snd_add_term = af1_gx[y] * f3[y];
+                sum_xy += mf1_gx[y] * f2_x * f3[y] + fst_add_term + snd_add_term;
             }
         }
         sum_xy
@@ -238,7 +241,7 @@ mod tests {
         let fixed_gate = util::random_gate(gkr_round.gate_labes());
 
         let mut prover: NaiveProver<Fr> = NaiveProver::new(gkr_round.clone(), &fixed_gate);
-        let ark_sum = NaiveProver::ark_compute_sum_naive(&gkr_round.pred(), &gkr_round.vi, &gkr_round.vj, &*fixed_gate, &gkr_round.gate_type);
+        let ark_sum = NaiveProver::ark_compute_sum_naive(&gkr_round.mult_predicate(), &gkr_round.add_predicate(), &gkr_round.vi, &gkr_round.vj, &*fixed_gate, &gkr_round.gate_type);
 
         let my_sum = prover.compute_sum();
         assert_eq!(my_sum, ark_sum);

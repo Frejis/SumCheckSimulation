@@ -25,7 +25,7 @@ impl<F: Field> FastProver<F> {
             panic!();
         }
         let should_initialize_phase_one = gkr_round.vi.num_vars > 0;
-        let fixed_mult = gkr_round.pred().fix_variables(gate);
+        let fixed_mult = gkr_round.mult_predicate().fix_variables(gate);
         let mut temp_res = Self {
             fixed_mult,
             p: Vec::new(),
@@ -130,18 +130,6 @@ impl<F: Field> SumCheckProver<F> for FastProver<F> {
             GateType::Mul => self.fix_variable_mult(r),
         }
     }
-
-    fn layer_reduction_message(&self, b_star: &[F], c_star: &[F]) -> LayerReductionMessage<F> {
-        let k_ip1 = self.layer_value_mle.num_vars;
-        assert_eq!(b_star.len(), k_ip1);
-        assert_eq!(b_star.len(), c_star.len());
-
-        let ts: Vec<F> = (0..=k_ip1).map(|i| F::from(i as u64)).collect();
-        let values = restrict_mle_to_line(&self.layer_value_mle, b_star, c_star, &ts);
-        let g = interpolate_univariate(&values, &ts);
-
-        LayerReductionMessage::new(g.evaluate(&F::zero()), g.evaluate(&F::one()), g)
-    }
 }
 
 
@@ -213,7 +201,7 @@ mod test {
         let random_gate = random_gate(gkr_round.gate_labes());
         let mut fast_prover = FastProver::new(gkr_round.clone(), &random_gate);
 
-        let naive_sum = NaiveProver::ark_compute_sum_naive(&gkr_round.pred(), &gkr_round.vi, &gkr_round.vj, &random_gate, &gkr_round.gate_type);
+        let naive_sum = NaiveProver::ark_compute_sum_naive(&gkr_round.mult_predicate(), &gkr_round.add_predicate(), &gkr_round.vi, &gkr_round.vj, &random_gate, &gkr_round.gate_type);
         let fast_sum = fast_prover.compute_sum();
         assert_eq!(naive_sum, fast_sum);
     }

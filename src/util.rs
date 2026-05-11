@@ -3,18 +3,22 @@ use ark_poly::{DenseMultilinearExtension, DenseUVPolynomial, MultilinearExtensio
 use ark_poly::univariate::DensePolynomial;
 use ark_std::test_rng;
 
-/// Taken from arkworks sumcheck protocol.
+/// Originally taken from Arkworks.
 /// Can be seen [here](https://github.com/arkworks-rs/sumcheck/blob/master/src/gkr_round_sumcheck/test.rs)
-/// This should only really be used for testing.
+/// This should only really be used for testing. 
+/// This has been modified to return two predicate functions for both addition and multiplication.
+/// This is in order to support circuits that relies on both addition and multiplication gates.
 pub fn random_gkr_round_gates<F: Field>(
     dim: usize,
 ) -> (
+    SparseMultilinearExtension<F>,
     SparseMultilinearExtension<F>,
     DenseMultilinearExtension<F>,
     DenseMultilinearExtension<F>,
 ) {
     let rng = &mut test_rng();
     (
+        SparseMultilinearExtension::rand_with_config(dim * 3, 1 << dim, rng),
         SparseMultilinearExtension::rand_with_config(dim * 3, 1 << dim, rng),
         DenseMultilinearExtension::rand(dim, rng),
         DenseMultilinearExtension::rand(dim, rng),
