@@ -283,6 +283,6 @@ mod generic_tests {
         let gkr_round: GKRRound<Fr> = GKRRound::new_rand_var_size(8);
         assert_eq!(gkr_round.vi.num_vars, 8);
         assert_eq!(gkr_round.vj.num_vars, 8);
-        assert_eq!(gkr_round.mult().num_vars(), 24);
+        assert_eq!(gkr_round.pred().num_vars(), 24);
     }
 }

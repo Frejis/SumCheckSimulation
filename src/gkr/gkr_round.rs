@@ -5,7 +5,7 @@ use crate::util::random_gkr_round_gates;
 
 #[derive(Clone)]
 pub struct GKRRound<F: Field> {
-    mult: SparseMultilinearExtension<F>,
+    pred: SparseMultilinearExtension<F>,
     pub(crate) vi: DenseMultilinearExtension<F>,
     pub(crate) vj: DenseMultilinearExtension<F>,
     gate_labes: usize,
@@ -14,7 +14,7 @@ pub struct GKRRound<F: Field> {
 
 impl<F: Field> GKRRound<F> {
     pub fn set_mult(&mut self, mult: SparseMultilinearExtension<F>) {
-        self.mult = mult;
+        self.pred = mult;
     }
 
     pub fn set_vi(&mut self, vi: DenseMultilinearExtension<F>) {
@@ -31,8 +31,8 @@ impl<F: Field> GKRRound<F> {
 }
 
 impl<F: Field> GKRRound<F> {
-    pub fn mult(&self) -> &SparseMultilinearExtension<F> {
-        &self.mult
+    pub fn pred(&self) -> &SparseMultilinearExtension<F> {
+        &self.pred
     }
 
     pub fn vi(&self) -> &DenseMultilinearExtension<F> {
@@ -50,13 +50,13 @@ impl<F: Field> GKRRound<F> {
 
 impl<F: Field> GKRRound<F> {
     pub fn new(
-        mult: &SparseMultilinearExtension<F>,
+        pred: &SparseMultilinearExtension<F>,
         vi: &DenseMultilinearExtension<F>,
         vj: &DenseMultilinearExtension<F>,
         gate_type: &GateType,
     ) -> GKRRound<F> {
         GKRRound {
-            mult: mult.clone(),
+            pred: pred.clone(),
             gate_labes: vi.num_vars,
             vi: vi.clone(),
             vj: vj.clone(),
@@ -68,9 +68,9 @@ impl<F: Field> GKRRound<F> {
     pub fn new_rand() -> GKRRound<F> {
 
         let typ = GateType::Mul;
-        let (mult, vi, vj) = random_gkr_round_gates(7);
+        let (pred, vi, vj) = random_gkr_round_gates(7);
         GKRRound {
-            mult,
+            pred,
             vi,
             vj,
             gate_labes: 7,
@@ -82,9 +82,9 @@ impl<F: Field> GKRRound<F> {
     pub fn new_rand_var_size(var_size: usize) -> GKRRound<F> {
 
         let typ = GateType::Mul; // TODO update this when the `Add` functionality gets implemented.
-        let (mult, vi, vj) = random_gkr_round_gates(var_size);
+        let (pred, vi, vj) = random_gkr_round_gates(var_size);
         GKRRound {
-            mult,
+            pred,
             vi,
             vj,
             gate_labes: var_size,

@@ -17,7 +17,7 @@ impl<F: Field> NaiveProver<F> {
         gkr_round: GKRRound<F>,
         gate: &[F],
     ) -> NaiveProver<F> {
-        let fixed_mult = gkr_round.mult().fix_variables(gate);
+        let fixed_mult = gkr_round.pred().fix_variables(gate);
         NaiveProver {
             layer_value_mle: gkr_round.vi.clone(),
             gkr_round,
@@ -238,7 +238,7 @@ mod tests {
         let fixed_gate = util::random_gate(gkr_round.gate_labes());
 
         let mut prover: NaiveProver<Fr> = NaiveProver::new(gkr_round.clone(), &fixed_gate);
-        let ark_sum = NaiveProver::ark_compute_sum_naive(&gkr_round.mult(), &gkr_round.vi, &gkr_round.vj, &*fixed_gate, &gkr_round.gate_type);
+        let ark_sum = NaiveProver::ark_compute_sum_naive(&gkr_round.pred(), &gkr_round.vi, &gkr_round.vj, &*fixed_gate, &gkr_round.gate_type);
 
         let my_sum = prover.compute_sum();
         assert_eq!(my_sum, ark_sum);

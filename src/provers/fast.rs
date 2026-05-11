@@ -25,7 +25,7 @@ impl<F: Field> FastProver<F> {
             panic!();
         }
         let should_initialize_phase_one = gkr_round.vi.num_vars > 0;
-        let fixed_mult = gkr_round.mult().fix_variables(gate);
+        let fixed_mult = gkr_round.pred().fix_variables(gate);
         let mut temp_res = Self {
             fixed_mult,
             p: Vec::new(),
@@ -213,7 +213,7 @@ mod test {
         let random_gate = random_gate(gkr_round.gate_labes());
         let mut fast_prover = FastProver::new(gkr_round.clone(), &random_gate);
 
-        let naive_sum = NaiveProver::ark_compute_sum_naive(&gkr_round.mult(), &gkr_round.vi, &gkr_round.vj, &random_gate, &gkr_round.gate_type);
+        let naive_sum = NaiveProver::ark_compute_sum_naive(&gkr_round.pred(), &gkr_round.vi, &gkr_round.vj, &random_gate, &gkr_round.gate_type);
         let fast_sum = fast_prover.compute_sum();
         assert_eq!(naive_sum, fast_sum);
     }
