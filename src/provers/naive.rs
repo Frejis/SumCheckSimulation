@@ -246,6 +246,7 @@ mod tests {
         prover.fix_variable(r_field);
 
         assert_eq!(prover.get_verifier_function().num_vars, old_verifier_vars);
+        assert_eq!(old_verifier_vars, 1);
     }
 
     #[test]
