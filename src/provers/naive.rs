@@ -37,30 +37,6 @@ impl<F: Field> NaiveProver<F> {
         self.fixed_add.clone()
     }
 
-    /// Takes the variables needed to evalute the product of the GKR function.
-    ///
-    fn eval_g(&self, point: &Vec<F>) -> F {
-        assert_eq!(point.len(), self.gkr_round.vi.num_vars + self.gkr_round.vj.num_vars);
-        assert_eq!(self.get_mult_fixed().num_vars, self.gkr_round.vi.num_vars + self.gkr_round.vj.num_vars);
-        /*
-        A bit blank of ideas.
-        */
-        let u_len = self.gkr_round.vi.num_vars();
-        let v_len = self.gkr_round.vj.num_vars();
-
-        assert_eq!(point.len(), u_len + v_len);
-
-        let u = &point[..u_len].to_vec();
-        let v = &point[u_len..u_len + v_len].to_vec();
-
-        let vi_val = self.gkr_round.vi().evaluate(u);
-        let vj_val = self.gkr_round.vj.evaluate(v);
-        let mult_val = self.get_mult_fixed().evaluate(point);
-        let add_val = self.get_add_fixed().evaluate(point);
-
-        vi_val * vj_val * mult_val + (add_val * vi_val) + (add_val * vj_val)
-    }
-
     fn calculate_sum_naive(
         &self,
     ) -> F {
@@ -79,7 +55,7 @@ impl<F: Field> NaiveProver<F> {
             for y in 0..(1 << self.gkr_round.vj.num_vars) {
                 // Adding ~add_i(g,b,c) ~W_i(b)
                 sum_xy += add_f1_gx[y] * f2_x;
-                // Adding ~add_i(g,b,c) ~W_i(b)
+                // Adding ~add_i(g,b,c) ~W_i(c)
                 sum_xy += add_f1_gx[y] * self.gkr_round.vj[y];
                 // Adding the term for mult predicate
                 sum_xy += mult_f1_gx[y] * f2_x * self.gkr_round.vj[y];
@@ -115,6 +91,37 @@ impl<F: Field> NaiveProver<F> {
         }
         sum_xy
     }
+
+    pub fn ark_compute_sum_alr_fixed(
+        mult_predicate: &SparseMultilinearExtension<F>,
+        add_predicate: &SparseMultilinearExtension<F>,
+        f2: &DenseMultilinearExtension<F>,
+        f3: &DenseMultilinearExtension<F>,
+        g: &[F],
+        f: &F,
+    ) -> F {
+        let dim = f2.num_vars;
+        let mult_predicate_at_gate = mult_predicate.fix_variables(g);
+        let add_predicate_at_gate = add_predicate.fix_variables(g);
+        let mut sum_xy = F::zero();
+        for x in 0..(1 << dim - 1) {
+            let f2_x = f2[x];
+            let mf1_gx = mult_predicate_at_gate
+                .fix_variables(&[*f])
+                .fix_variables(&index_to_field_element(x, dim))
+                .to_dense_multilinear_extension();
+            let  af1_gx = add_predicate_at_gate
+                .fix_variables(&[*f])
+                .fix_variables(&index_to_field_element(x, dim))
+                .to_dense_multilinear_extension();
+            for y in 0..(1 << dim - 1) {
+                let fst_add_term = af1_gx[y] * f2[x];
+                let snd_add_term = af1_gx[y] * f3[y];
+                sum_xy += mf1_gx[y] * f2_x * f3[y] + fst_add_term + snd_add_term;
+            }
+        }
+        sum_xy
+    }
 }
 
 impl<F: Field> SumCheckProver<F> for NaiveProver<F> {
@@ -124,30 +131,33 @@ impl<F: Field> SumCheckProver<F> for NaiveProver<F> {
     }
 
     fn  get_verifier_function(&mut self) -> SparseMultilinearExtension<F> {
-        // clone existing functions.
-        /*
-        Iterate over all possible assignments of the bits.
-        After that take the first variable and set it to 0 and the other one 1.
-        */
-        // Assume that the gate has been fixed.
-        //assert_eq!(self.mult.num_vars, self.vi.num_vars * 3);
-        let n = self.gkr_round.vi().num_vars + self.gkr_round.vj.num_vars;
-
-        let total = 1 << n;
         let mut s0 = F::zero();
         let mut s1 = F::zero();
 
-        for mask in 0..total {
-            let field_index: Vec<F> = index_to_field_element(mask, n);
-
-            let value = self.eval_g(&field_index);
-            if field_index[0].is_zero() {
-                s0 += &value;
-            } else if field_index[0].is_one() {
-                s1 += &value;
+        let mult_evaluations =self.fixed_mult.evaluations.iter();
+        for (xy, val) in mult_evaluations {
+            let dim = self.gkr_round.vi().num_vars;
+            let x = xy & ((1 << dim) - 1);
+            let y = xy >> dim;
+            let value = *val * self.gkr_round.vi()[x] * self.gkr_round.vj()[y];
+            if xy & 1 == 0 {
+                s0 += value;
+            } else {
+                s1 += value;
             }
         }
-
+        let add_evaluations =self.fixed_add.evaluations.iter();
+        for (xy, val) in add_evaluations {
+            let dim = self.gkr_round.vi().num_vars;
+            let x = xy & ((1 << dim) - 1);
+            let y = xy >> dim;
+            let value = *val * self.gkr_round.vi()[x] + *val * self.gkr_round.vj()[y];
+            if x & 1 == 0 {
+                s0 += value;
+            } else {
+                s1 += value;
+            }
+        }
         SparseMultilinearExtension::from_evaluations(1, vec![&(0, s0), &(1, s1)])
     }
 
@@ -184,7 +194,7 @@ impl<F: Field> SumCheckProver<F> for NaiveProver<F> {
 mod tests {
     use ark_bls12_381::Fr;
     use ark_ff::{One, Zero};
-    use ark_poly::{MultilinearExtension};
+    use ark_poly::{DenseMultilinearExtension, MultilinearExtension, SparseMultilinearExtension};
     use ark_std::{test_rng, UniformRand};
     use crate::gkr::gkr_round::GKRRound;
     use crate::provers::naive::NaiveProver;
@@ -271,5 +281,26 @@ mod tests {
         let verifier_func = prover.get_verifier_function();
         prover.fix_variable(Fr::zero());
         assert_eq!(prover.compute_sum(), verifier_func[0]);
+    }
+    #[test]
+    fn test_naive_fix_same_as_fix_ark() {
+        let gkr_round = GKRRound::new_rand();
+        let fixed_gate = util::random_gate(gkr_round.gate_labes());
+
+        let mut prover: NaiveProver<Fr> = NaiveProver::new(gkr_round.clone(), &fixed_gate);
+
+        let r_field = Fr::rand(&mut test_rng());
+        prover.fix_variable(r_field);
+
+        let naive_sum = prover.compute_sum();
+        let ark_sum = NaiveProver::ark_compute_sum_alr_fixed(
+                                                            &gkr_round.mult_predicate(),
+                                                            gkr_round.add_predicate(),
+                                                            gkr_round.vi(),
+                                                            gkr_round.vj(),
+                                                            &fixed_gate,
+                                                            &r_field,
+        );
+        assert_eq!(ark_sum, naive_sum);
     }
 }
