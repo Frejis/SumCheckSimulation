@@ -104,18 +104,18 @@ impl<F: Field> NaiveProver<F> {
         let mult_predicate_at_gate = mult_predicate.fix_variables(g);
         let add_predicate_at_gate = add_predicate.fix_variables(g);
         let mut sum_xy = F::zero();
-        for x in 0..(1 << dim - 1) {
-            let f2_x = f2[x];
+        for x in 0..(1 << f2.num_vars - 1) {
+            let f2_x = f2.fix_variables(&[*f])[x];
             let mf1_gx = mult_predicate_at_gate
                 .fix_variables(&[*f])
-                .fix_variables(&index_to_field_element(x, dim))
+                .fix_variables(&index_to_field_element(x, f2.num_vars - 1))
                 .to_dense_multilinear_extension();
             let  af1_gx = add_predicate_at_gate
                 .fix_variables(&[*f])
-                .fix_variables(&index_to_field_element(x, dim))
+                .fix_variables(&index_to_field_element(x, f2.num_vars - 1))
                 .to_dense_multilinear_extension();
-            for y in 0..(1 << dim - 1) {
-                let fst_add_term = af1_gx[y] * f2[x];
+            for y in 0..(1 << f3.num_vars) {
+                let fst_add_term = af1_gx[y] * f2.fix_variables(&[*f])[x];
                 let snd_add_term = af1_gx[y] * f3[y];
                 sum_xy += mf1_gx[y] * f2_x * f3[y] + fst_add_term + snd_add_term;
             }
