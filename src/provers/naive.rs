@@ -8,7 +8,10 @@ use crate::util::{index_to_field_element, restrict_mle_to_line, interpolate_univ
 
 pub struct NaiveProver<F: Field> {
     gkr_round: GKRRound<F>,
+    // The fixed multiplication predicate for a given gate.
     fixed_mult: SparseMultilinearExtension<F>,
+    // The fixed addition gate for a given gate.
+    fixed_add: SparseMultilinearExtension<F>,
     layer_value_mle: DenseMultilinearExtension<F>,
 }
 
@@ -18,10 +21,12 @@ impl<F: Field> NaiveProver<F> {
         gate: &[F],
     ) -> NaiveProver<F> {
         let fixed_mult = gkr_round.mult_predicate().fix_variables(gate);
+        let fixed_add = gkr_round.add_predicate().fix_variables(gate);
         NaiveProver {
             layer_value_mle: gkr_round.vi.clone(),
             gkr_round,
             fixed_mult,
+            fixed_add,
         }
     }
 
@@ -59,18 +64,24 @@ impl<F: Field> NaiveProver<F> {
         &self,
     ) -> F {
         let vi_variables = self.gkr_round.vi().num_vars;
-        let f1_g = &self.fixed_mult;
+        let mult_predicate_at_gate = &self.fixed_mult;
+        let add_predicate_at_gate = &self.fixed_add;
         let mut sum_xy = F::zero();
         for x in 0..(1 << vi_variables) {
             let f2_x = self.gkr_round.vi()[x];
-            let f1_gx = f1_g
+            let mult_f1_gx = mult_predicate_at_gate
+                .fix_variables(&index_to_field_element(x, vi_variables))
+                .to_dense_multilinear_extension();
+            let add_f1_gx = add_predicate_at_gate
                 .fix_variables(&index_to_field_element(x, vi_variables))
                 .to_dense_multilinear_extension();
             for y in 0..(1 << self.gkr_round.vj.num_vars) {
-                match self.gkr_round.gate_type {
-                    GateType::Add => sum_xy += f1_gx[y] * (f2_x + self.gkr_round.vj[y]),
-                    GateType::Mul => sum_xy += f1_gx[y] * f2_x * self.gkr_round.vj[y],
-                }
+                // Adding ~add_i(g,b,c) ~W_i(b)
+                sum_xy += add_f1_gx[y] * f2_x;
+                // Adding ~add_i(g,b,c) ~W_i(b)
+                sum_xy += add_f1_gx[y] * self.gkr_round.vj[y];
+                // Adding the term for mult predicate
+                sum_xy += mult_f1_gx[y] * f2_x * self.gkr_round.vj[y];
             }
         }
         sum_xy
@@ -82,7 +93,6 @@ impl<F: Field> NaiveProver<F> {
         f2: &DenseMultilinearExtension<F>,
         f3: &DenseMultilinearExtension<F>,
         g: &[F],
-        gate_type: &GateType
     ) -> F {
         let dim = f2.num_vars;
         let mult_predicate_at_gate = mult_predicate.fix_variables(g);
@@ -241,7 +251,7 @@ mod tests {
         let fixed_gate = util::random_gate(gkr_round.gate_labes());
 
         let mut prover: NaiveProver<Fr> = NaiveProver::new(gkr_round.clone(), &fixed_gate);
-        let ark_sum = NaiveProver::ark_compute_sum_naive(&gkr_round.mult_predicate(), &gkr_round.add_predicate(), &gkr_round.vi, &gkr_round.vj, &*fixed_gate, &gkr_round.gate_type);
+        let ark_sum = NaiveProver::ark_compute_sum_naive(&gkr_round.mult_predicate(), &gkr_round.add_predicate(), &gkr_round.vi, &gkr_round.vj, &*fixed_gate);
 
         let my_sum = prover.compute_sum();
         assert_eq!(my_sum, ark_sum);
