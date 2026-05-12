@@ -26,7 +26,7 @@ impl<F: Field> Libra<F> {
         let mut libra = Self {
             a_hg: DenseMultilinearExtension::from_evaluations_vec(gkrround.vj.num_vars, vec![F::zero(); 1 << gkrround.vj.num_vars]),
             phase: ProverPhase::Uninitialized,
-            f1: gkrround.pred().clone(),
+            f1: gkrround.mult_predicate().clone(),
             f2: gkrround.vi.clone(),
             f3: gkrround.vj.clone(),
             f2_clone: gkrround.vi.clone(),
