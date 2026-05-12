@@ -2,7 +2,6 @@ use ark_ff::Field;
 use ark_poly::{DenseMultilinearExtension, MultilinearExtension, Polynomial, SparseMultilinearExtension};
 use crate::gkr::gkr_round::GKRRound;
 use crate::gkr::layer::LayerReductionMessage;
-use crate::structures::circuit_structures::GateType;
 use crate::structures::data_structures::SumCheckProver;
 use crate::util::{index_to_field_element, restrict_mle_to_line, interpolate_univariate};
 
@@ -34,6 +33,10 @@ impl<F: Field> NaiveProver<F> {
         self.fixed_mult.clone()
     }
 
+    fn get_add_fixed(&self) -> SparseMultilinearExtension<F> {
+        self.fixed_add.clone()
+    }
+
     /// Takes the variables needed to evalute the product of the GKR function.
     ///
     fn eval_g(&self, point: &Vec<F>) -> F {
@@ -53,11 +56,9 @@ impl<F: Field> NaiveProver<F> {
         let vi_val = self.gkr_round.vi().evaluate(u);
         let vj_val = self.gkr_round.vj.evaluate(v);
         let mult_val = self.get_mult_fixed().evaluate(point);
+        let add_val = self.get_add_fixed().evaluate(point);
 
-        match self.gkr_round.gate_type {
-            GateType::Add => (vi_val + vj_val) * mult_val,
-            GateType::Mul => vi_val * vj_val * mult_val,
-        }
+        vi_val * vj_val * mult_val + (add_val * vi_val) + (add_val * vj_val)
     }
 
     fn calculate_sum_naive(
@@ -122,7 +123,7 @@ impl<F: Field> SumCheckProver<F> for NaiveProver<F> {
         self.calculate_sum_naive()
     }
 
-    fn get_verifier_function(&mut self) -> SparseMultilinearExtension<F> {
+    fn  get_verifier_function(&mut self) -> SparseMultilinearExtension<F> {
         // clone existing functions.
         /*
         Iterate over all possible assignments of the bits.
@@ -152,10 +153,12 @@ impl<F: Field> SumCheckProver<F> for NaiveProver<F> {
 
     fn fix_variable(&mut self, random_field_element: F) {
         /*
-        1. Fix the first variable in mult. Then fix in vi. Once vi has no more variables fix vj.
+        1. Fix the first set of variables in the predicates for the gate.
+        2. Then fix in vi. Once vi has no more variables fix vj.
         */
         let field_packed = &[random_field_element];
         self.fixed_mult = self.fixed_mult.fix_variables(field_packed);
+        self.fixed_add = self.fixed_add.fix_variables(field_packed);
 
         if self.gkr_round.vi.num_vars > 0 {
             self.gkr_round.vi = self.gkr_round.vi.fix_variables(field_packed);
