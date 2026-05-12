@@ -96,10 +96,10 @@ where
         let k_i = log2_pow2(layer_i.values.len());
         let k_next = log2_pow2(layer_next.values.len());
 
-        let (_add_i, mult_i) = layer_i.wiring_predicates(k_i, k_next);
+        let (add_i, mult_i) = layer_i.wiring_predicates(k_i, k_next);
         let w_next = layer_next.value_extension(k_next);
 
-        let round_i = GKRRound::new(&mult_i, &w_next, &w_next, &GateType::Mul);
+        let round_i = GKRRound::new(&mult_i, &add_i, &w_next, &w_next, &GateType::Mul);
 
         let time = Instant::now();
         let mut prover = prover_ctor(round_i.clone(), current_r.clone());
@@ -177,10 +177,10 @@ mod tests {
             let k_i = log2_pow2(layer_i.values.len());
             let k_next = log2_pow2(layer_next.values.len());
 
-            let (_add_i, mult_i) = layer_i.wiring_predicates(k_i, k_next);
+            let (add_i, mult_i) = layer_i.wiring_predicates(k_i, k_next);
             let w_next = layer_next.value_extension(k_next);
 
-            let round_i = GKRRound::new(&mult_i, &w_next, &w_next, &GateType::Mul);
+            let round_i = GKRRound::new(&mult_i, &add_i, &w_next, &w_next, &GateType::Mul);
 
             let mut prover = NaiveProver::new(round_i.clone(), &current_r);
             let mut verifier = StandardVerifier::new(3, current_claim, round_i);
@@ -251,7 +251,7 @@ mod tests {
             println!("current_r = {:?}", current_r);
             println!("current_claim = {}", current_claim);
 
-            let (_add_i, mult_i) = layer_i.wiring_predicates(k_i, k_next);
+            let (add_i, mult_i) = layer_i.wiring_predicates(k_i, k_next);
             let w_next = layer_next.value_extension(k_next);
 
             // Debug: Check gate types
@@ -259,7 +259,7 @@ mod tests {
             let num_mul = layer_i.gates.iter().filter(|g| matches!(g.typ, GateType::Mul)).count();
             println!("  Layer {} has {} Add gates, {} Mul gates", i, num_add, num_mul);
 
-            let round_i = GKRRound::new(&mult_i, &w_next, &w_next, &GateType::Mul);
+            let round_i = GKRRound::new(&mult_i, &add_i, &w_next, &w_next, &GateType::Mul);
 
             let mut prover = NaiveProver::new(round_i.clone(), &current_r);
 
@@ -268,7 +268,7 @@ mod tests {
             println!("prover computed sum = {}", sumcheck_computed);
 
             // Also compute using the reference ark implementation
-            let ark_sum = NaiveProver::ark_compute_sum_naive(&mult_i, &w_next, &w_next, &current_r, &GateType::Mul);
+            let ark_sum = NaiveProver::ark_compute_sum_naive(&mult_i, &add_i, &w_next, &w_next, &current_r, &GateType::Mul);
             println!("ark reference sum = {}", ark_sum);
 
             // Also compute directly what W_i(current_r) should be
@@ -329,10 +329,10 @@ mod tests {
             let k_i = log2_pow2(layer_i.values.len());
             let k_next = log2_pow2(layer_next.values.len());
 
-            let (_add_i, mult_i) = layer_i.wiring_predicates(k_i, k_next);
+            let (add_i, mult_i) = layer_i.wiring_predicates(k_i, k_next);
             let w_next = layer_next.value_extension(k_next);
 
-            let round_i = GKRRound::new(&mult_i, &w_next, &w_next, &GateType::Mul);
+            let round_i = GKRRound::new(&mult_i, &add_i, &w_next, &w_next, &GateType::Mul);
 
             let mut prover = FastProver::new(round_i.clone(), &current_r);
             let mut verifier = StandardVerifier::new(3, current_claim, round_i);
@@ -403,7 +403,7 @@ mod tests {
             println!("current_r = {:?}", current_r);
             println!("current_claim = {}", current_claim);
 
-            let (_add_i, mult_i) = layer_i.wiring_predicates(k_i, k_next);
+            let (add_i, mult_i) = layer_i.wiring_predicates(k_i, k_next);
             let w_next = layer_next.value_extension(k_next);
 
             // Debug: Check gate types
@@ -411,7 +411,7 @@ mod tests {
             let num_mul = layer_i.gates.iter().filter(|g| matches!(g.typ, GateType::Mul)).count();
             println!("  Layer {} has {} Add gates, {} Mul gates", i, num_add, num_mul);
 
-            let round_i = GKRRound::new(&mult_i, &w_next, &w_next, &GateType::Mul);
+            let round_i = GKRRound::new(&mult_i, &add_i, &w_next, &w_next, &GateType::Mul);
 
             let mut prover = FastProver::new(round_i.clone(), &current_r);
 
@@ -420,7 +420,7 @@ mod tests {
             println!("prover computed sum = {}", sumcheck_computed);
 
             // Also compute using the reference ark implementation
-            let ark_sum = NaiveProver::ark_compute_sum_naive(&mult_i, &w_next, &w_next, &current_r, &GateType::Mul);
+            let ark_sum = NaiveProver::ark_compute_sum_naive(&mult_i, &add_i, &w_next, &w_next, &current_r, &GateType::Mul);
             println!("ark reference sum = {}", ark_sum);
 
             // Also compute directly what W_i(current_r) should be
