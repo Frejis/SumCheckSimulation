@@ -268,7 +268,7 @@ mod tests {
             println!("prover computed sum = {}", sumcheck_computed);
 
             // Also compute using the reference ark implementation
-            let ark_sum = NaiveProver::ark_compute_sum_naive(&mult_i, &add_i, &w_next, &w_next, &current_r, &GateType::Mul);
+            let ark_sum = NaiveProver::ark_compute_sum_naive(&mult_i, &add_i, &w_next, &w_next, &current_r);
             println!("ark reference sum = {}", ark_sum);
 
             // Also compute directly what W_i(current_r) should be
@@ -420,7 +420,7 @@ mod tests {
             println!("prover computed sum = {}", sumcheck_computed);
 
             // Also compute using the reference ark implementation
-            let ark_sum = NaiveProver::ark_compute_sum_naive(&mult_i, &add_i, &w_next, &w_next, &current_r, &GateType::Mul);
+            let ark_sum = NaiveProver::ark_compute_sum_naive(&mult_i, &add_i, &w_next, &w_next, &current_r);
             println!("ark reference sum = {}", ark_sum);
 
             // Also compute directly what W_i(current_r) should be

@@ -212,7 +212,7 @@ mod test {
         let random_gate = random_gate(gkr_round.gate_labes());
         let mut fast_prover = FastProver::new(gkr_round.clone(), &random_gate);
 
-        let naive_sum = NaiveProver::ark_compute_sum_naive(&gkr_round.mult_predicate(), &gkr_round.add_predicate(), &gkr_round.vi, &gkr_round.vj, &random_gate, &gkr_round.gate_type);
+        let naive_sum = NaiveProver::ark_compute_sum_naive(&gkr_round.mult_predicate(), &gkr_round.add_predicate(), &gkr_round.vi, &gkr_round.vj, &random_gate);
         let fast_sum = fast_prover.compute_sum();
         assert_eq!(naive_sum, fast_sum);
     }
