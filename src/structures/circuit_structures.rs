@@ -17,10 +17,22 @@ pub struct Gate {
     pub(crate) predicate: GateType,
 }
 
+impl Gate {
+    pub fn new(left: usize, right: usize, predicate: GateType) -> Self {
+        Self { left, right, predicate }
+    }
+}
+
 /// A layered arithmetic circuit.
 pub struct GKRCircuit<F: Field> {
     pub layers: Vec<Layer>,
     pub field: F, // Dummy just here to make type checker happy.
+}
+
+impl<F: Field> GKRCircuit<F> {
+    pub fn new(layers: Vec<Layer>) -> Self {
+        Self { layers, field: F::zero() }
+    }
 }
 
 impl<F: Field> GKRCircuit<F> {

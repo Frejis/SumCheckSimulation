@@ -120,4 +120,6 @@ mod tests {
         let expected = gkr_round.vi().evaluate(&next_r);
         assert_eq!(next_claim, expected);
     }
+
+
 }

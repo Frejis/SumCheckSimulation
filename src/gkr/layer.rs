@@ -40,6 +40,11 @@ pub struct Layer {
     pub gates: Vec<Gate>
 }
 
+impl Layer {
+    pub fn new(gates: Vec<Gate>) -> Self {
+        Self { gates }
+    }
+}
 
 #[derive(Clone)]
 pub struct EvaluatedLayer<F: Field> {
