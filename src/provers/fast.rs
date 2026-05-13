@@ -12,7 +12,9 @@ pub struct FastProver<F: Field> {
     gkr_round: GKRRound<F>,
     mult_p: Vec<F>,
     mult_q: Vec<F>,
-    add: Vec<F>,
+    add_pred: Vec<F>,
+    add_f2: Vec<F>,
+    add_pred_f3: Vec<F>,
     fixed_variables: Vec<F>,
     has_phase_two_been_init: bool,
     layer_value_mle: DenseMultilinearExtension<F>,
@@ -34,7 +36,9 @@ impl<F: Field> FastProver<F> {
             fixed_add,
             mult_p: Vec::new(),
             mult_q: Vec::new(),
-            add: Vec::new(),
+            add_f2: Vec::new(),
+            add_pred: Vec::new(),
+            add_pred_f3: Vec::new(),
             gkr_round: gkr_round.clone(),
             fixed_variables: Vec::new(),
             has_phase_two_been_init: false,
@@ -103,14 +107,23 @@ impl<F: Field> FastProver<F> {
     }
 
     fn init_phase_one_add_arrays(&mut self, dim: usize, size: usize) {
-        self.add = vec![F::zero(); size];
+        self.add_pred = vec![F::zero(); size];
+        self.add_f2 = vec![F::zero(); size];
+        self.add_pred_f3 = vec![F::zero(); size];
+
         let add_predicate_nonzero = self.fixed_add.evaluations.iter();
         for (xy, value) in add_predicate_nonzero {
             let x = xy & ((1 << dim) - 1);
             let y = xy >> dim;
-            let left_value = self.gkr_round.vi[x];
             let right_value = self.gkr_round.vj[y];
-            self.add[x] += *value * left_value + *value * right_value;
+            self.add_pred_f3[x] += *value * self.gkr_round.vj()[y];
+            self.add_pred[x] += *value;
+        }
+
+        for i in 0..size {
+            let i_index = index_to_field_element(i, dim);
+            let vi_val = self.gkr_round.vi().evaluate(&i_index);
+            self.add_f2[i] = vi_val;
         }
     }
 }
@@ -127,8 +140,9 @@ impl<F: Field> SumCheckProver<F> for FastProver<F> {
             // Add the multiplication term
             sum += self.mult_p[i] * self.mult_q[i];
         }
-        for i in 0..self.add.len() {
-            sum += self.add[i]
+        for i in 0..self.add_pred.len() {
+            sum += self.add_pred[i] * self.add_f2[i];
+            sum += self.add_pred_f3[i]
         }
         sum
     }
@@ -147,8 +161,9 @@ impl<F: Field> SumCheckProver<F> for FastProver<F> {
                 s1 += value;
             }
         }
-        for mask in 0..self.add.len() {
-            let mut value = self.add[mask];
+        for mask in 0..self.add_pred.len() {
+            let mut value = self.add_pred[mask] * self.add_f2[mask];
+            value += self.add_pred_f3[mask];
             if mask & 1 == 0 { s0 += value; }
             else { s1 += value; }
         }
@@ -200,20 +215,30 @@ impl<F: Field> FastProver<F> {
     }
 
     fn fix_variable_add(&mut self, r: F) {
-        let n = self.add.len();
+        let n = self.add_pred_f3.len();
         let half = n >> 1;
-        let mut new_add = Vec::with_capacity(half);
+        let mut new_add_pred = Vec::with_capacity(half);
+        let mut new_add_f2 = Vec::with_capacity(half);
+        let mut new_add_pred_f3 = Vec::with_capacity(half);
 
         for i in 0..half {
             // LSB bit = 0 hver gang.
             let index_0 = i << 1;
             let index_1 = index_0 | 1;
-            let a_0 = self.add[index_0];
-            let a_1 = self.add[index_1];
-            new_add.push(a_0 + r * (a_1 - a_0));
+            let pred_0 = self.add_pred[index_0];
+            let pred_1 = self.add_pred[index_1];
+            let pred_f3_0 = self.add_pred_f3[index_0];
+            let pred_f3_1 = self.add_pred_f3[index_1];
+            let f2_0 = self.add_f2[index_0];
+            let f2_1 = self.add_f2[index_1];
+            new_add_pred.push(pred_0 + r * (pred_1 - pred_0));
+            new_add_f2.push(f2_0 + r * (f2_1 - f2_0));
+            new_add_pred_f3.push(pred_f3_0 + r * (pred_f3_1 - pred_f3_0));
         }
 
-        self.add = new_add;
+        self.add_pred = new_add_pred;
+        self.add_f2 = new_add_f2;
+        self.add_pred_f3 = new_add_pred_f3;
     }
 }
 
