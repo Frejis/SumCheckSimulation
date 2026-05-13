@@ -1,5 +1,5 @@
 use ark_ff::Field;
-use ark_poly::Polynomial;
+use ark_poly::{DenseMultilinearExtension, Polynomial};
 use ark_poly::univariate::DensePolynomial;
 use crate::structures::circuit_structures::Gate;
 
@@ -32,16 +32,42 @@ impl<F: Field> LayerReductionMessage<F> {
             qt,
         }
     }
-
-    pub fn eval(&self, random_point: F) -> F {
-        self.qt.evaluate(&random_point)
-    }
 }
 
 
-pub struct Layer<F: Field> {
+pub struct Layer {
     /// Gate wiring for this layer (size = 2^{k_i}).
-    pub gates: Vec<Gate>,
-    /// Gate values at this layer.
+    pub gates: Vec<Gate>
+}
+
+
+#[derive(Clone)]
+pub struct EvaluatedLayer<F: Field> {
+    pub values: Vec<F>
+}
+
+impl<F: Field> EvaluatedLayer<F> {
+    pub fn new(values: Vec<F>) -> Self {
+        Self { values }
+    }
+
+    pub fn value_extension(&self, s_i: usize) -> DenseMultilinearExtension<F> {
+        DenseMultilinearExtension::from_evaluations_vec(s_i, self.values.clone())
+    }
+}
+
+impl<F: Field> EvaluatedLayer<F> {
+    pub fn empty() -> Self {
+        Self { 
+            values: Vec::new(), 
+        }
+    }
+}
+
+pub struct InputLayer<F: Field> {
+    pub values: Vec<F>,
+}
+
+pub struct OutputLayer<F: Field> {
     pub values: Vec<F>,
 }

@@ -2,7 +2,6 @@ use ark_ff::Field;
 use ark_poly::{DenseMultilinearExtension, MultilinearExtension, Polynomial, SparseMultilinearExtension};
 use crate::gkr::gkr_round::GKRRound;
 use crate::gkr::layer::LayerReductionMessage;
-use crate::structures::circuit_structures::GateType;
 use crate::structures::data_structures::SumCheckProver;
 use crate::util::{index_to_field_element, interpolate_univariate, restrict_mle_to_line};
 
@@ -25,9 +24,6 @@ impl<F: Field> FastProver<F> {
         gkr_round: GKRRound<F>,
         gate: &[F],
     ) -> Self {
-        if gkr_round.gate_type == GateType::Add {
-            panic!();
-        }
         let should_initialize_phase_one = gkr_round.vi.num_vars > 0;
         let fixed_mult = gkr_round.mult_predicate().fix_variables(gate);
         let fixed_add = gkr_round.add_predicate().fix_variables(gate);
@@ -51,18 +47,11 @@ impl<F: Field> FastProver<F> {
     }
 
     fn initialize_phase_one(&mut self) {
-        match self.gkr_round.gate_type {
-            GateType::Add => todo!(),
-            GateType::Mul => self.init_phase_one_mult()
-        }
+        self.init_phase_one_mult()
     }
 
     fn initialize_phase_two(&mut self) {
-        match self.gkr_round.gate_type {
-            GateType::Add => { panic!() // I don't even want to bother at this point
-                }
-            GateType::Mul => self.init_phase_two_mult(),
-        }
+        self.init_phase_two_mult()
     }
 
     fn init_phase_two_mult(&mut self) {
@@ -176,13 +165,17 @@ impl<F: Field> SumCheckProver<F> for FastProver<F> {
         self.fix_variable_mult(r);
         self.fix_variable_add(r);
     }
-    fn layer_reduction_message(&self, b_star: &[F], c_star: &[F]) -> LayerReductionMessage<F> {
+    fn layer_reduction_message(&self, s_i_plus_1: usize) -> LayerReductionMessage<F> {
         let k_ip1 = self.layer_value_mle.num_vars;
+        let b_star = self.fixed_variables[0..s_i_plus_1].to_vec();
+        let c_star = self.fixed_variables[s_i_plus_1..2*s_i_plus_1].to_vec();
         assert_eq!(b_star.len(), k_ip1);
         assert_eq!(b_star.len(), c_star.len());
 
         let ts: Vec<F> = (0..=k_ip1).map(|i| F::from(i as u64)).collect();
-        let values = restrict_mle_to_line(&self.layer_value_mle, b_star, c_star, &ts);
+        
+        //TODO: Rewrite this part.
+        let values = restrict_mle_to_line(&self.layer_value_mle, &*b_star, &*c_star, &ts);
         let g = interpolate_univariate(&values, &ts);
 
         LayerReductionMessage::new(g.evaluate(&F::zero()), g.evaluate(&F::one()), g)
@@ -426,7 +419,6 @@ mod test {
     #[test]
     fn test_naive_agrees_with_fast_forall_variables() {
         let mut gkr_round: GKRRound<Fr> = GKRRound::new_rand();
-        gkr_round.gate_type = GateType::Mul;
 
         let r_gate = random_gate(gkr_round.gate_labes());
         let mut fast_prover = FastProver::new(gkr_round.clone(), &r_gate);

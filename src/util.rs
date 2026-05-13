@@ -58,7 +58,7 @@ pub fn random_gate<F: Field>(label_length: usize) -> Vec<F> {
 ///
 /// returns: Vec<F, Global>
 /// Idk global has to be there otherwise it doesn't show F.
-pub fn _line_point<F: Field>(b_star: &[F], c_star: &[F], t: F) -> Vec<F> {
+pub fn line_point<F: Field>(b_star: &[F], c_star: &[F], t: F) -> Vec<F> {
     assert_eq!(b_star.len(), c_star.len());
     b_star
         .iter()
@@ -115,15 +115,15 @@ pub fn interpolate_univariate<F: Field>(evals: &[F], points: &[F]) -> DensePolyn
 mod test {
     use ark_bls12_381::Fr;
     use ark_ff::{One, Zero};
-    use crate::util::{_line_point};
+    use crate::util::{line_point};
 
     #[test]
     fn test_line_point() {
         let size = 5;
         let b_star = vec![Fr::zero(); size];
         let c_star = vec![Fr::one(); size];
-        assert_eq!(_line_point(b_star.as_ref(), c_star.as_ref(), Fr::zero()), b_star);
-        assert_eq!(_line_point(b_star.as_ref(), c_star.as_ref(), Fr::one()), c_star)
+        assert_eq!(line_point(b_star.as_ref(), c_star.as_ref(), Fr::zero()), b_star);
+        assert_eq!(line_point(b_star.as_ref(), c_star.as_ref(), Fr::one()), c_star)
     }
 
 }

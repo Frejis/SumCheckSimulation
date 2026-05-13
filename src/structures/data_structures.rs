@@ -14,7 +14,7 @@ pub trait SumCheckProver<F: Field> {
 
     fn fix_variable(&mut self, random_field_element: F);
 
-    fn layer_reduction_message(&self, b_star: &[F], c_star: &[F]) -> LayerReductionMessage<F>;
+    fn layer_reduction_message(&self, s_i_plus_1: usize) -> LayerReductionMessage<F>;
 }
 
 pub trait SumCheckVerifier<F: Field> {

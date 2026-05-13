@@ -177,16 +177,8 @@ impl<F: Field> SumCheckProver<F> for NaiveProver<F> {
         }
     }
 
-    fn layer_reduction_message(&self, b_star: &[F], c_star: &[F]) -> LayerReductionMessage<F> {
-        let k_ip1 = self.layer_value_mle.num_vars;
-        assert_eq!(b_star.len(), k_ip1);
-        assert_eq!(b_star.len(), c_star.len());
-
-        let ts: Vec<F> = (0..=k_ip1).map(|i| F::from(i as u64)).collect();
-        let values = restrict_mle_to_line(&self.layer_value_mle, b_star, c_star, &ts);
-        let g = interpolate_univariate(&values, &ts);
-
-        LayerReductionMessage::new(g.evaluate(&F::zero()), g.evaluate(&F::one()), g)
+    fn layer_reduction_message(&self, s_i_plus_1: usize) -> LayerReductionMessage<F> {
+        todo!()
     }
 }
 
@@ -201,19 +193,6 @@ mod tests {
     use crate::structures::data_structures::SumCheckProver;
     use crate::util;
     use crate::util::index_to_field_element;
-
-    #[test]
-    #[should_panic]
-    fn test_layer_reduction_message() {
-        let gkr_round = GKRRound::new_rand();
-        let fixed_gate = util::random_gate(gkr_round.gate_labes());
-        let b_star = util::random_gate(gkr_round.gate_labes());
-        let c_star = util::random_gate(gkr_round.gate_labes());
-
-        let mut prover: NaiveProver<Fr> = NaiveProver::new(gkr_round, &fixed_gate);
-        let message = prover.layer_reduction_message(&*b_star, &*c_star);
-        todo!()
-    }
 
     #[test]
     fn sanity_check() {
