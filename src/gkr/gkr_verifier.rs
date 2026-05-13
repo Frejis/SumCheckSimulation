@@ -1,5 +1,5 @@
-use ark_ff::Field;
-use ark_poly::{DenseMultilinearExtension, SparseMultilinearExtension};
+use ark_ff::{Field, Zero};
+use ark_poly::{DenseMultilinearExtension, Polynomial, SparseMultilinearExtension};
 use ark_std::test_rng;
 use crate::gkr::layer::InputLayer;
 use crate::gkr::predicates::{AddPredicate, MultPredicate};
@@ -14,9 +14,24 @@ use crate::structures::data_structures::{SumCheckProver, SumCheckVerifier};
 pub struct GKRVerifier<F: Field> {
     circuit: GKRCircuit<F>,
     input: InputLayer<F>,
-    claimed_circuit_eval: DenseMultilinearExtension<F>,
-    round: u32,
     output_claim: DenseMultilinearExtension<F>,
+}
+
+impl<F: Field> GKRVerifier<F> {
+    pub fn new(circuit: GKRCircuit<F>, input: InputLayer<F>) -> Self {
+        Self { circuit, input, output_claim: DenseMultilinearExtension::zero() }
+    }
+}
+
+impl<F: Field> GKRVerifier<F> {
+    
+    /// Panics if the evaluation of the input layer does not give the claimed evaluation
+    /// When evaluated the mle of the input layer is evaluated in the "random" gate position. 
+    /// This function panics == Verifier rejects.
+    pub(crate) fn verify_final_claimed_value_point(&self, gate: Vec<F>, claimed_evaluation: F) {
+        let input_mle = self.input.value_extension();
+        assert_eq!(input_mle.evaluate(&gate), claimed_evaluation);
+    }
 }
 
 impl<F: Field> GKRVerifier<F> {

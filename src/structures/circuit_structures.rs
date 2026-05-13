@@ -24,6 +24,7 @@ impl Gate {
 }
 
 /// A layered arithmetic circuit.
+#[derive(Clone)]
 pub struct GKRCircuit<F: Field> {
     pub layers: Vec<Layer>,
     pub field: F, // Dummy just here to make type checker happy.
@@ -42,10 +43,11 @@ impl<F: Field> GKRCircuit<F> {
         let mut evaluated_layers: Vec<EvaluatedLayer<F>> = vec![EvaluatedLayer::empty(); layers];
         for i in 0..layers {
             // Working from bottom to up.
-            let i = layers - i;
+            let i = layers - i - 1;
 
             // Create an empty vector with 0 for each gate as the default assignment of the output of a gate
-            let mut evaluated_gates: Vec<F> = vec![F::zero(); self.layers[i].gates.len()];
+            let gate_amount = self.layers[i].gates.len();
+            let mut evaluated_gates: Vec<F> = vec![F::zero(); gate_amount];
 
             for (idx, gate) in self.layers[i].gates.iter().enumerate() {
                 let (left_child, right_child) = self.get_input_values(i, &gate, &evaluated_layers, &input);
@@ -76,6 +78,7 @@ impl<F: Field> GKRCircuit<F> {
     }
 }
 
+#[derive(Clone)]
 pub struct EvaluatedGKRCircuit<F: Field> {
     pub layers: Vec<EvaluatedLayer<F>>,
 }

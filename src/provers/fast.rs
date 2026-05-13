@@ -173,7 +173,7 @@ impl<F: Field> SumCheckProver<F> for FastProver<F> {
         assert_eq!(b_star.len(), c_star.len());
 
         let ts: Vec<F> = (0..=k_ip1).map(|i| F::from(i as u64)).collect();
-        
+
         //TODO: Rewrite this part.
         let values = restrict_mle_to_line(&self.layer_value_mle, &*b_star, &*c_star, &ts);
         let g = interpolate_univariate(&values, &ts);

@@ -15,8 +15,8 @@ pub struct GKRProver<F: Field> {
 }
 
 impl<F: Field> GKRProver<F> {
-    pub fn evaluated_circuit(&self) -> &EvaluatedGKRCircuit<F> {
-        &self.evaluated_circuit
+    pub fn evaluated_circuit(&self) -> EvaluatedGKRCircuit<F> {
+        self.circuit.evaluate_circuit(&self.input)
     }
 
     pub fn predicates(&self) -> &Vec<(AddPredicate<F>, MultPredicate<F>)> {
@@ -37,7 +37,7 @@ impl<F: Field> GKRProver<F> {
     /// This function initializes the predicates for the prover. This is a precomputation of all
     /// predicates for the circuit. As such if the prover is reused with a different input it can
     /// easily utilize the old predicate functions.
-    fn compute_predicates(&mut self) {
+    pub fn compute_predicates(&mut self) {
         for i in 0..self.circuit.layers.len() {
             let mut add_terms = Vec::<(usize, F)>::new();
             let mut mul_terms = Vec::<(usize, F)>::new();
@@ -88,6 +88,6 @@ impl<F: Field> GKRProver<F> {
     pub fn get_output_claim(&mut self) -> DenseMultilinearExtension<F> {
         let evaluate_circuit = self.circuit.evaluate_circuit(&self.input);
         let output_layer = evaluate_circuit.layers[0].clone();
-        DenseMultilinearExtension::from_evaluations_vec(output_layer.values.len(), output_layer.values)
+        DenseMultilinearExtension::from_evaluations_vec(log2_pow2(output_layer.values.len()), output_layer.values)
     }
 }

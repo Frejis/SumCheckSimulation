@@ -18,8 +18,8 @@ impl<F: Field> GKRCircuit<F> {
             let mut layer = Vec::new();
             for j in 0..layer_sizes[i] {
                 let gate_predicate: GateType = random_gate_type();
-                let left_input: usize = random_number(layer_sizes[j +1]);
-                let right_input: usize = random_number(layer_sizes[j +1]);
+                let left_input: usize = random_number(layer_sizes[i +1]);
+                let right_input: usize = random_number(layer_sizes[i +1]);
                 let gate = Gate::new(left_input, right_input, gate_predicate);
                 layer.push(gate);
             }
@@ -34,7 +34,7 @@ fn random_number(max: usize) -> usize {
 }
 
 fn random_gate_type() -> GateType {
-    if test_rng().gen_bool(50f64) {
+    if test_rng().gen_bool(0.50f64) {
         GateType::Add
     } else {
         GateType::Mul
