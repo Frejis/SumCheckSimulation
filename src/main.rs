@@ -5,7 +5,6 @@ use structures::data_structures::SumCheckProver;
 use crate::gkr::gkr_protocol::simulate_gkr_circuit;
 use crate::gkr::gkr_round::GKRRound;
 use crate::provers::fast::FastProver;
-use crate::provers::libra::Libra;
 use crate::provers::naive::NaiveProver;
 use crate::structures::circuit_structures::GKRCircuit;
 
@@ -29,10 +28,9 @@ fn simulate_circuit_and_print_results() {
 
     // Benchmark each prover on the same circuit set
     let fast_result = benchmark_prover_on_circuit_set("Fast", &config, &circuit_set, fast_prover_ctor);
-    let _naive_result = benchmark_prover_on_circuit_set("Naive", &config, &circuit_set, naive_prover_ctor);
-    let libra_result = benchmark_prover_on_circuit_set("Libra", &config, &circuit_set, libra_prover_ctor);
+    let naive_result = benchmark_prover_on_circuit_set("Naive", &config, &circuit_set, naive_prover_ctor);
 
-    print_benchmark_report(&config, &[fast_result, libra_result]);
+    print_benchmark_report(&config, &[fast_result, naive_result]);
 }
 
 #[derive(Clone)]
@@ -89,10 +87,6 @@ fn fast_prover_ctor(round: GKRRound<Fr>, random_gate: Vec<Fr>) -> FastProver<Fr>
 
 fn naive_prover_ctor(round: GKRRound<Fr>, random_gate: Vec<Fr>) -> NaiveProver<Fr> {
     NaiveProver::new(round, &random_gate)
-}
-
-fn libra_prover_ctor(round: GKRRound<Fr>, random_gate: Vec<Fr>) -> Libra<Fr> {
-    Libra::new(&round, random_gate)
 }
 
 /// Load pre-generated circuits from disk, or generate and save them if they don't exist
