@@ -4,7 +4,7 @@ use ark_poly::{DenseMultilinearExtension, Polynomial};
 use crate::gkr::gkr_prover::GKRProver;
 use crate::gkr::gkr_round::GKRRound;
 use crate::gkr::gkr_verifier::GKRVerifier;
-use crate::gkr::layer::InputLayer;
+use crate::gkr::layer::{InputLayer, LayerConnection};
 use crate::provers::fast::FastProver;
 use crate::structures::circuit_structures::{GKRCircuit};
 use crate::structures::data_structures::{SumCheckProver, SumCheckVerifier};
@@ -68,29 +68,43 @@ impl<F: Field> GKRDriver<F> {
         &mut self,
     ) -> (Duration, Duration)
     {
-        let mut mi = F::zero();
-        let mut next_gate = vec![F::zero()];
+        let mut layer_connection = LayerConnection::new(vec![F::zero()], F::zero());
         // This is for all rounds except the last round.
         for i in 0..self.circuit.layers.len() {
-            (next_gate, mi) = self.handle_sum_check_for_layer::<T>(mi, &mut next_gate, i);
+            layer_connection = self.handle_sum_check_for_layer::<T>(layer_connection, i);
         }
 
         // This function panics == Verifier rejects.
         println!("Checking Final claim");
-        self.verifier.verify_final_claimed_value_point(next_gate, mi);
+        self.verifier.verify_final_claimed_value_point(layer_connection.next_gate, layer_connection.claim_mi);
 
         (Duration::from_hours(2), Duration::from_hours(2))
     }
 
-    fn handle_sum_check_for_layer<T: SumCheckProver<F>>(&mut self, mi: F, mut next_gate: &mut Vec<F>, i: usize) -> (Vec<F>, F) {
+    fn handle_sum_check_for_layer<T: SumCheckProver<F>>(
+        &mut self, mut layer_connection: LayerConnection<F>,
+        i: usize
+    ) -> LayerConnection<F> {
         let s_i_plus_1 = self.get_correct_next_layer_size(i);
         let value_extension = self.get_correct_value_extension(i);
         if i == 0 {
             println!("Running initial round");
-            self.handle_first_round::<T>(&mut next_gate, s_i_plus_1, &value_extension)
+            let (gate, claim ) = self.handle_first_round::<T>(
+                &mut layer_connection.next_gate,
+                s_i_plus_1,
+                &value_extension
+            );
+            LayerConnection::new(gate, claim)
         } else {
-            println!("Handling other rounds");
-            self.handle_intermediate_rounds::<T>(mi, &mut next_gate, s_i_plus_1, &value_extension, i)
+            println!("Handling round {i}.");
+            let (gate, claim) = self.handle_intermediate_rounds::<T>(
+                layer_connection.claim_mi,
+                &mut layer_connection.next_gate,
+                s_i_plus_1,
+                &value_extension,
+                i,
+            );
+            LayerConnection::new(gate, claim)
         }
     }
 

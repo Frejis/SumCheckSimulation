@@ -101,3 +101,14 @@ impl<F: Field> InputLayer<F> {
 pub struct OutputLayer<F: Field> {
     pub values: Vec<F>,
 }
+
+pub struct LayerConnection<F: Field> {
+    pub next_gate: Vec<F>,
+    pub claim_mi: F,
+}
+
+impl<F: Field> LayerConnection<F> {
+    pub fn new(next_gate: Vec<F>, claim_mi: F) -> Self {
+        Self { next_gate, claim_mi }
+    }
+}
