@@ -35,7 +35,7 @@ fn random_number(max: usize) -> usize {
 
 fn random_gate_type() -> GateType {
     if test_rng().gen_bool(0.50f64) {
-        GateType::Add
+        GateType::Mul // TODO revert this to add this is just for debugging purposes.
     } else {
         GateType::Mul
     }

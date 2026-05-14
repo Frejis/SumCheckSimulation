@@ -1,9 +1,10 @@
 use ark_ff::Field;
 use ark_poly::{DenseMultilinearExtension, MultilinearExtension, Polynomial, SparseMultilinearExtension};
+use ark_poly::univariate::SparsePolynomial;
 use crate::gkr::gkr_round::GKRRound;
 use crate::gkr::layer::LayerReductionMessage;
 use crate::structures::data_structures::SumCheckProver;
-use crate::util::{index_to_field_element, restrict_mle_to_line, interpolate_univariate};
+use crate::util::{index_to_field_element};
 
 pub struct NaiveProver<F: Field> {
     gkr_round: GKRRound<F>,
@@ -84,8 +85,9 @@ impl<F: Field> NaiveProver<F> {
                 .fix_variables(&index_to_field_element(x, dim))
                 .to_dense_multilinear_extension();
             for y in 0..(1 << dim) {
-                let fst_add_term = af1_gx[y] * f2[x];
-                let snd_add_term = af1_gx[y] * f3[y];
+                let test = af1_gx[y];
+                let fst_add_term = test * f2[x];
+                let snd_add_term = test * f3[y];
                 sum_xy += mf1_gx[y] * f2_x * f3[y] + fst_add_term + snd_add_term;
             }
         }
@@ -177,7 +179,7 @@ impl<F: Field> SumCheckProver<F> for NaiveProver<F> {
         }
     }
 
-    fn layer_reduction_message(&self, s_i_plus_1: usize) -> LayerReductionMessage<F> {
+    fn restrict_poly<M: MultilinearExtension<F>>(b: &[F], c: &[F], mle: &M) -> SparsePolynomial<F> {
         todo!()
     }
 }
@@ -208,7 +210,7 @@ mod tests {
     }
     #[test]
     fn test_get_verifier_function() {
-        let gkr_round = GKRRound::new_rand();
+        let gkr_round = GKRRound::new_rand(7);
         let fixed_gate = util::random_gate(gkr_round.gate_labes());
 
         let mut prover: NaiveProver<Fr> = NaiveProver::new(gkr_round, &fixed_gate);
@@ -224,7 +226,7 @@ mod tests {
     #[test]
     fn test_fixing_a_variable() {
         let mut rng = test_rng();
-        let gkr_round = GKRRound::new_rand();
+        let gkr_round = GKRRound::new_rand(7);
         let fixed_gate = util::random_gate(gkr_round.gate_labes());
 
         let mut prover: NaiveProver<Fr> = NaiveProver::new(gkr_round, &fixed_gate);
@@ -240,10 +242,12 @@ mod tests {
 
     #[test]
     fn test_naive_is_same_as_arks_initially() {
-        let gkr_round = GKRRound::new_rand();
-        let fixed_gate = util::random_gate(gkr_round.gate_labes());
+        let gkr_round = GKRRound::new_rand(7);
+        assert_eq!(gkr_round.mult_predicate().num_vars, 21);
+        let fixed_gate = util::random_gate(7);
+        assert_eq!(fixed_gate.len(), 7);
 
-        let mut prover: NaiveProver<Fr> = NaiveProver::new(gkr_round.clone(), &fixed_gate);
+        let mut prover: NaiveProver<Fr> = NaiveProver::new(gkr_round.clone(), &fixed_gate.clone());
         let ark_sum = NaiveProver::ark_compute_sum_naive(&gkr_round.mult_predicate(), &gkr_round.add_predicate(), &gkr_round.vi, &gkr_round.vj, &*fixed_gate);
 
         let my_sum = prover.compute_sum();
@@ -252,7 +256,7 @@ mod tests {
 
     #[test]
     fn test_fix_variable_value() {
-        let gkr_round = GKRRound::new_rand();
+        let gkr_round = GKRRound::new_rand(7);
         let fixed_gate = util::random_gate(gkr_round.gate_labes());
 
         let mut prover: NaiveProver<Fr> = NaiveProver::new(gkr_round, &fixed_gate);
@@ -263,7 +267,7 @@ mod tests {
     }
     #[test]
     fn test_naive_fix_same_as_fix_ark() {
-        let gkr_round = GKRRound::new_rand();
+        let gkr_round = GKRRound::new_rand(7);
         let fixed_gate = util::random_gate(gkr_round.gate_labes());
 
         let mut prover: NaiveProver<Fr> = NaiveProver::new(gkr_round.clone(), &fixed_gate);

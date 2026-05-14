@@ -1,5 +1,6 @@
+use std::iter;
 use ark_ff::Field;
-use ark_poly::{DenseMultilinearExtension, DenseUVPolynomial, MultilinearExtension, Polynomial, SparseMultilinearExtension};
+use ark_poly::{univariate, DenseMultilinearExtension, DenseUVPolynomial, MultilinearExtension, Polynomial, SparseMultilinearExtension};
 use ark_poly::univariate::DensePolynomial;
 use ark_std::test_rng;
 
@@ -41,9 +42,9 @@ pub fn index_to_field_element<F: Field>(mut index: usize, mut nv: usize) -> Vec<
 pub fn random_gate<F: Field>(label_length: usize) -> Vec<F> {
     let mut rng = test_rng();
     let mut res = Vec::with_capacity(label_length);
-    for _ in 0..label_length {
+    (0..label_length).for_each(|_| {
         res.push(F::rand(&mut rng));
-    }
+    });
     res
 }
 
@@ -70,23 +71,11 @@ pub fn line_point<F: Field>(b_star: &[F], c_star: &[F], t: F) -> Vec<F> {
 }
 
 
-pub fn restrict_mle_to_line<F: Field>(
-    mle: &DenseMultilinearExtension<F>,
-    a: &[F],
-    b: &[F],
-    ts: &[F],
-) -> Vec<F> {
-    assert_eq!(a.len(), b.len());
-    assert_eq!(a.len(), mle.num_vars);
-
-    ts.iter()
-        .map(|t| {
-            let point: Vec<F> = a.iter()
-                .zip(b.iter())
-                .map(|(ai, bi)| *ai + (*bi - *ai) * *t)
-                .collect();
-
-            mle.evaluate(&point)
+/// This function is taken from https://montekki.github.io/thaler-ch4-4/
+pub fn line<F: Field>(b: &[F], c: &[F]) -> Vec<univariate::SparsePolynomial<F>> {
+    iter::zip(b, c)
+        .map(|(b, c)| {
+            univariate::SparsePolynomial::from_coefficients_slice(&[(0, *b), (1, *c - b)])
         })
         .collect()
 }

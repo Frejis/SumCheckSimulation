@@ -1,6 +1,5 @@
 use ark_ff::Field;
-use ark_poly::{DenseMultilinearExtension, Polynomial};
-use ark_poly::univariate::DensePolynomial;
+use ark_poly::{univariate, DenseMultilinearExtension};
 use ark_std::test_rng;
 use crate::gkr::gkr_driver::log2_pow2;
 use crate::structures::circuit_structures::Gate;
@@ -9,7 +8,7 @@ use crate::structures::circuit_structures::Gate;
 pub struct LayerReductionMessage<F: Field> {
     z1: F,
     z2: F,
-    qt: DensePolynomial<F>,
+    qt: univariate::SparsePolynomial<F>,
 }
 
 impl<F: Field> LayerReductionMessage<F> {
@@ -21,13 +20,13 @@ impl<F: Field> LayerReductionMessage<F> {
         self.z2
     }
 
-    pub fn qt(&self) -> &DensePolynomial<F> {
+    pub fn qt(&self) -> &univariate::SparsePolynomial<F> {
         &self.qt
     }
 }
 
 impl<F: Field> LayerReductionMessage<F> {
-    pub fn new(z1: F, z2: F, qt: DensePolynomial<F>) -> Self {
+    pub fn new(z1: F, z2: F, qt: univariate::SparsePolynomial<F>) -> Self {
         Self {
             z1,
             z2,
@@ -59,8 +58,9 @@ impl<F: Field> EvaluatedLayer<F> {
         Self { values }
     }
 
-    pub fn value_extension(&self, s_i: usize) -> DenseMultilinearExtension<F> {
-        DenseMultilinearExtension::from_evaluations_vec(s_i, self.values.clone())
+    pub fn value_extension(&self) -> DenseMultilinearExtension<F> {
+        let variables = log2_pow2(self.values.len());
+        DenseMultilinearExtension::from_evaluations_vec(variables, self.values.clone())
     }
 }
 

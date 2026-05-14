@@ -1,14 +1,9 @@
-use std::time::Duration;
 use ark_bls12_381::Fr;
 use ark_std::test_rng;
-use structures::data_structures::SumCheckProver;
 use crate::gkr::gkr_driver::GKRDriver;
 use crate::gkr::gkr_prover::GKRProver;
-use crate::gkr::gkr_round::GKRRound;
 use crate::gkr::gkr_verifier::GKRVerifier;
 use crate::gkr::layer::InputLayer;
-use crate::provers::fast::FastProver;
-use crate::provers::naive::NaiveProver;
 use crate::structures::circuit_structures::GKRCircuit;
 
 mod util;

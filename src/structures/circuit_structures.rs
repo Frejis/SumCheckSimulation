@@ -1,5 +1,7 @@
 use ark_ff::Field;
+use ark_poly::DenseMultilinearExtension;
 use serde::{Deserialize, Serialize};
+use crate::gkr::gkr_driver::log2_pow2;
 use crate::gkr::layer::{EvaluatedLayer, InputLayer, Layer};
 
 /// Gate type: add or multiply child outputs.

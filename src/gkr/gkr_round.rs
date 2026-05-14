@@ -73,8 +73,8 @@ impl<F: Field> GKRRound<F> {
     }
 
     /// This function should only be used for testing purposes.
-    pub fn new_rand() -> GKRRound<F> {
-        let (mult_pred, add_pred, vi, vj) = random_gkr_round_gates(7);
+    pub fn new_rand(dim: usize) -> GKRRound<F> {
+        let (mult_pred, add_pred, vi, vj) = random_gkr_round_gates(dim);
         GKRRound {
             mult_predicate: mult_pred,
             add_predicate: add_pred,

@@ -1,5 +1,5 @@
 use ark_ff::Field;
-use ark_poly::{DenseMultilinearExtension, SparseMultilinearExtension};
+use ark_poly::{DenseMultilinearExtension, MultilinearExtension, SparseMultilinearExtension};
 use crate::gkr::gkr_driver::log2_pow2;
 use crate::gkr::layer::{EvaluatedLayer, InputLayer, Layer};
 use crate::gkr::predicates::{AddPredicate, MultPredicate};
@@ -87,7 +87,7 @@ impl<F: Field> GKRProver<F> {
 
     pub fn get_output_claim(&mut self) -> DenseMultilinearExtension<F> {
         let evaluate_circuit = self.circuit.evaluate_circuit(&self.input);
-        let output_layer = evaluate_circuit.layers[0].clone();
-        DenseMultilinearExtension::from_evaluations_vec(log2_pow2(output_layer.values.len()), output_layer.values)
+        let output_layer = &evaluate_circuit.layers[0];
+        output_layer.value_extension()
     }
 }

@@ -1,9 +1,10 @@
-use ark_ff::Field;
-use ark_poly::{DenseMultilinearExtension, MultilinearExtension, Polynomial, SparseMultilinearExtension};
+use std::iter;
+use ark_ff::{Field, Zero};
+use ark_poly::{univariate, DenseMultilinearExtension, DenseUVPolynomial, MultilinearExtension, Polynomial, SparseMultilinearExtension};
 use crate::gkr::gkr_round::GKRRound;
 use crate::gkr::layer::LayerReductionMessage;
 use crate::structures::data_structures::SumCheckProver;
-use crate::util::{index_to_field_element, interpolate_univariate, restrict_mle_to_line};
+use crate::util::{index_to_field_element};
 
 pub struct FastProver<F: Field> {
     fixed_mult: SparseMultilinearExtension<F>,
@@ -17,6 +18,18 @@ pub struct FastProver<F: Field> {
     fixed_variables: Vec<F>,
     has_phase_two_been_init: bool,
     layer_value_mle: DenseMultilinearExtension<F>,
+}
+
+impl<F: Field> FastProver<F> {
+    pub(crate) fn layer_reduction_message(&self, s_i_plus_1: usize) -> LayerReductionMessage<F> {
+        let mle = &self.layer_value_mle;
+        let b_star = self.fixed_variables[0..s_i_plus_1].to_vec();
+        let c_star = self.fixed_variables[s_i_plus_1..2*s_i_plus_1].to_vec();
+        let poly = FastProver::restrict_poly(&*b_star, &*c_star, mle);
+        let z_1 = mle.evaluate(&b_star);
+        let z_2 = mle.evaluate(&c_star);
+        LayerReductionMessage::new(z_1, z_2, poly)
+    }
 }
 
 impl<F: Field> FastProver<F> {
@@ -104,7 +117,6 @@ impl<F: Field> FastProver<F> {
         for (xy, value) in add_predicate_nonzero {
             let x = xy & ((1 << dim) - 1);
             let y = xy >> dim;
-            let right_value = self.gkr_round.vj[y];
             self.add_pred_f3[x] += *value * self.gkr_round.vj()[y];
             self.add_pred[x] += *value;
         }
@@ -165,20 +177,38 @@ impl<F: Field> SumCheckProver<F> for FastProver<F> {
         self.fix_variable_mult(r);
         self.fix_variable_add(r);
     }
-    fn layer_reduction_message(&self, s_i_plus_1: usize) -> LayerReductionMessage<F> {
-        let k_ip1 = self.layer_value_mle.num_vars;
-        let b_star = self.fixed_variables[0..s_i_plus_1].to_vec();
-        let c_star = self.fixed_variables[s_i_plus_1..2*s_i_plus_1].to_vec();
-        assert_eq!(b_star.len(), k_ip1);
-        assert_eq!(b_star.len(), c_star.len());
 
-        let ts: Vec<F> = (0..=k_ip1).map(|i| F::from(i as u64)).collect();
+    /// This function is taken from: https://montekki.github.io/thaler-ch4-4/
+    fn restrict_poly<M: MultilinearExtension<F>>(
+        b: &[F],
+        c: &[F],
+        mle: &M,
+    ) -> univariate::SparsePolynomial<F> {
+        let k: Vec<_> = iter::zip(b, c).map(|(b, c)| *c - b).collect();
 
-        //TODO: Rewrite this part.
-        let values = restrict_mle_to_line(&self.layer_value_mle, &*b_star, &*c_star, &ts);
-        let g = interpolate_univariate(&values, &ts);
+        let evaluations = mle.to_evaluations();
+        let num_vars = mle.num_vars();
 
-        LayerReductionMessage::new(g.evaluate(&F::zero()), g.evaluate(&F::one()), g)
+        let mut res = univariate::SparsePolynomial::zero();
+
+        for (i, evaluation) in evaluations.iter().enumerate() {
+            let mut p = univariate::SparsePolynomial::from_coefficients_vec(vec![(0, *evaluation)]);
+            for bit in 0..num_vars {
+                let mut b =
+                    univariate::SparsePolynomial::from_coefficients_vec(vec![(0, b[bit]), (1, k[bit])]);
+
+                if i & (1 << bit) == 0 {
+                    b = (&univariate::DensePolynomial::from_coefficients_vec(vec![F::one()]) - &b)
+                        .into();
+                }
+
+                p = p.mul(&b);
+            }
+
+            res += &p;
+        }
+
+        res
     }
 }
 
@@ -239,9 +269,7 @@ impl<F: Field> FastProver<F> {
 mod test {
     use ark_bls12_381::Fr;
     use ark_ff::{One, Zero};
-    use ark_poly::Polynomial;
     use ark_std::{test_rng, UniformRand};
-    use crate::structures::circuit_structures::GateType;
     use crate::structures::data_structures::{SumCheckProver, SumCheckVerifier};
     use crate::gkr::gkr_round::GKRRound;
     use crate::provers::fast::FastProver;
@@ -252,7 +280,7 @@ mod test {
 
     #[test]
     fn first_phase_sum_is_identical_to_ark() {
-        let gkr_round: GKRRound<Fr> = GKRRound::new_rand();
+        let gkr_round: GKRRound<Fr> = GKRRound::new_rand(7);
         let random_gate = random_gate(gkr_round.gate_labes());
         let mut fast_prover = FastProver::new(gkr_round.clone(), &random_gate);
 
@@ -268,7 +296,7 @@ mod test {
     }
 
     fn create_naive_and_fast_prover() -> (FastProver<Fr>, NaiveProver<Fr>) {
-        let gkr_round: GKRRound<Fr> = GKRRound::new_rand();
+        let gkr_round: GKRRound<Fr> = GKRRound::new_rand(7);
         let random_gate = random_gate(gkr_round.gate_labes());
         let mut fast_prover = FastProver::new(gkr_round.clone(), &random_gate);
         let mut naive_prover = NaiveProver::new(gkr_round, &random_gate);
@@ -278,7 +306,7 @@ mod test {
     #[test]
     fn test_fix_variable_reduces_amount_of_variables() {
         let mut rand = test_rng();
-        let gkr_round: GKRRound<Fr> = GKRRound::new_rand();
+        let gkr_round: GKRRound<Fr> = GKRRound::new_rand(7);
         let random_gate = random_gate(gkr_round.gate_labes());
         let mut fast_prover = FastProver::new(gkr_round.clone(), &random_gate);
 
@@ -291,7 +319,7 @@ mod test {
 
     #[test]
     fn test_verifier_func_value() {
-        let gkr_round: GKRRound<Fr> = GKRRound::new_rand();
+        let gkr_round: GKRRound<Fr> = GKRRound::new_rand(7);
         let random_gate = random_gate(gkr_round.gate_labes());
         let mut prover = FastProver::new(gkr_round.clone(), &random_gate);
 
@@ -302,7 +330,7 @@ mod test {
 
     #[test]
     fn test_fix_variable_value_zero() {
-        let gkr_round = GKRRound::new_rand();
+        let gkr_round = GKRRound::new_rand(7);
         let fixed_gate = util::random_gate(gkr_round.gate_labes());
 
         let mut prover: FastProver<Fr> = FastProver::new(gkr_round, &fixed_gate);
@@ -314,7 +342,7 @@ mod test {
 
     #[test]
     fn test_fix_variable_value_one() {
-        let gkr_round = GKRRound::new_rand();
+        let gkr_round = GKRRound::new_rand(7);
         let fixed_gate = util::random_gate(gkr_round.gate_labes());
 
         let mut prover: FastProver<Fr> = FastProver::new(gkr_round, &fixed_gate);
@@ -366,7 +394,7 @@ mod test {
     #[test]
     fn test_fix_variable_same_sum_as_naive() {
         let mut rand = test_rng();
-        let gkr_round: GKRRound<Fr> = GKRRound::new_rand();
+        let gkr_round: GKRRound<Fr> = GKRRound::new_rand(7);
         let r_field = Fr::rand(&mut rand);
         //let r_field = Fr::one();
 
@@ -385,7 +413,7 @@ mod test {
 
     #[test]
     fn test_fast_fix_same_as_fix_ark() {
-        let gkr_round = GKRRound::new_rand();
+        let gkr_round = GKRRound::new_rand(7);
         let fixed_gate = util::random_gate(gkr_round.gate_labes());
 
         let mut prover: FastProver<Fr> = FastProver::new(gkr_round.clone(), &fixed_gate);
@@ -407,7 +435,7 @@ mod test {
 
     #[test]
     fn test_get_verifier_function() {
-        let gkr_round: GKRRound<Fr> = GKRRound::new_rand();
+        let gkr_round: GKRRound<Fr> = GKRRound::new_rand(7);
         let random_gate = random_gate(gkr_round.gate_labes());
         let mut fast_prover = FastProver::new(gkr_round.clone(), &random_gate);
         // max degree is 5 for now, i think it should be 2.
@@ -418,7 +446,7 @@ mod test {
 
     #[test]
     fn test_naive_agrees_with_fast_forall_variables() {
-        let mut gkr_round: GKRRound<Fr> = GKRRound::new_rand();
+        let mut gkr_round: GKRRound<Fr> = GKRRound::new_rand(7);
 
         let r_gate = random_gate(gkr_round.gate_labes());
         let mut fast_prover = FastProver::new(gkr_round.clone(), &r_gate);

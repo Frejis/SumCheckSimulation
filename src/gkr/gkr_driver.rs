@@ -1,13 +1,17 @@
 use std::time::{Duration};
+use ark_bls12_381::Fr;
 use ark_ff::Field;
-use ark_poly::DenseMultilinearExtension;
+use ark_poly::{DenseMultilinearExtension, MultilinearExtension, Polynomial};
 use crate::gkr::gkr_prover::GKRProver;
 use crate::gkr::gkr_round::GKRRound;
 use crate::gkr::gkr_verifier::GKRVerifier;
 use crate::gkr::layer::InputLayer;
 use crate::provers::fast::FastProver;
-use crate::structures::circuit_structures::GKRCircuit;
+use crate::provers::naive::NaiveProver;
+use crate::structures::circuit_structures::{GKRCircuit, GateType};
 use crate::structures::data_structures::{SumCheckProver, SumCheckVerifier};
+use crate::util;
+use crate::util::index_to_field_element;
 use crate::verifiers::standard_verifier::StandardVerifier;
 
 /// This file is responsible for simulating a GKRProof
@@ -91,19 +95,21 @@ impl<F: Field> GKRDriver<F> {
     }
 
     fn get_correct_next_layer_size(&mut self, i: usize) -> usize {
-        if i < self.circuit.layers.len() {
-            log2_pow2(self.circuit.layers[i + 1].gates.len())
+        if i < self.circuit.layers.len() - 1 {
+            let layer = &self.circuit.layers[i + 1];
+            let gates_len = layer.gates.len();
+            log2_pow2(gates_len)
         } else {
             log2_pow2(self.input_layer.values.len())
         }
     }
 
     fn get_correct_value_extension(&mut self, i: usize, s_i_plus_1: usize) -> DenseMultilinearExtension<F> {
-        if i < self.circuit.layers.len() {
+        if i < self.circuit.layers.len() - 1 {
             self.gkrprover
                 .evaluated_circuit()
                 .layers[i + 1]
-                .value_extension(s_i_plus_1)
+                .value_extension()
         } else {
             self.input_layer
                 .value_extension()
@@ -118,7 +124,7 @@ impl<F: Field> GKRDriver<F> {
                                   layer: usize,
     ) -> (Vec<F>, F) {
         let (add_pred, mult_pred) = &self.gkrprover.predicates()[layer];
-        let gkr_round: GKRRound<F> = GKRRound::new(&add_pred.pred, &mult_pred.pred, &value_extension, &value_extension);
+        let gkr_round: GKRRound<F> = GKRRound::new(&mult_pred.pred, &add_pred.pred, &value_extension, &value_extension);
         let mut fast_prover = FastProver::new(gkr_round.clone(), &*next_gate);
         assert_eq!(mi, fast_prover.compute_sum());
         let verifier = StandardVerifier::new(100, mi, gkr_round);
@@ -131,11 +137,74 @@ impl<F: Field> GKRDriver<F> {
                           value_extension: &DenseMultilinearExtension<F>
     ) -> (Vec<F>, F) {
         let output_claim = self.gkrprover.get_output_claim();
+        assert_eq!(output_claim.num_vars, 1);
+        let first_gate_output = output_claim.evaluate(&vec![F::zero()]);
+        let (add_pred, mult_pred) = &self.gkrprover.predicates()[0];
+        let value_extension = self.gkrprover.evaluated_circuit().layers[1].value_extension();
+        assert_eq!(add_pred.pred.num_vars, 5);
+
+        // Manual test that the value extension add up to the correct value.
+        let output_gate_one = &self.circuit.layers[0].gates[0];
+        let left = output_gate_one.left;
+        let right = output_gate_one.right;
+        let left = value_extension.evaluate(&index_to_field_element(left, 2));
+        let right = value_extension.evaluate(&index_to_field_element(right, 2));
+        match output_gate_one.predicate {
+            GateType::Add => {
+                println!("It was an add gate");
+                assert_eq!(first_gate_output, left + right)
+            }
+            GateType::Mul => {
+                println!("It was a mult gate");
+                assert_eq!(first_gate_output, left * right)
+            }
+        }
+
+        // Verify that the mult predicate correctly sums to the expected value.
+        let pred = &mult_pred.pred;
+        let fixed_gate = pred.clone().fix_variables(&vec![F::zero()]);
+        let mut sum = F::zero();
+        for x in 0..(1<<2) {
+            let f2_x = value_extension[x];
+            let mf1_gx = fixed_gate
+                .fix_variables(&index_to_field_element(x, 2))
+                .to_dense_multilinear_extension();
+            for y in 0..(1 << 2) {
+                sum += mf1_gx[y] * f2_x * value_extension[y];
+            }
+        }
+        assert_eq!(sum, first_gate_output);
+
+        let gkr_round: GKRRound<F> = GKRRound::new(&mult_pred.pred, &add_pred.pred, &value_extension.clone(), &value_extension.clone());
+        let ark_sum = NaiveProver::ark_compute_sum_naive(&mult_pred.pred, &add_pred.pred, &value_extension, &value_extension, &[F::zero()]);
+        assert_eq!(ark_sum, sum);
+
+        let mut naive_prover = NaiveProver::new(gkr_round.clone(), &[F::zero()]);
+
+        let fixed_gate = vec![F::zero()];
+        let mut prover = NaiveProver::new(gkr_round.clone(), &fixed_gate);
+        assert_eq!(mult_pred.pred.num_vars, 5);
+        assert_eq!(value_extension.num_vars, 2);
+        assert_eq!(fixed_gate.len(), 1);
+        assert_eq!(add_pred.pred.num_vars, 5);
+        let ark_sum = NaiveProver::ark_compute_sum_naive(&gkr_round.mult_predicate(), &gkr_round.add_predicate(), &gkr_round.vi, &gkr_round.vj, &*fixed_gate);
+
+        let my_sum = prover.compute_sum();
+        assert_eq!(my_sum, ark_sum);
+
+        assert_eq!(naive_prover.compute_sum(), ark_sum);
+
+        let mut tmp_prover = FastProver::new(gkr_round.clone(), &[F::zero()]);
+        assert_eq!(first_gate_output, tmp_prover.compute_sum());
+
         let gate_length = log2_pow2(self.circuit.layers[0].gates.len());
         let random_gate = self.verifier.random_gate(&output_claim, gate_length);
-        let (add_pred, mult_pred) = &self.gkrprover.predicates()[0];
-        let gkr_round: GKRRound<F> = GKRRound::new(&add_pred.pred, &mult_pred.pred, &value_extension, &value_extension);
         let mut fast_prover = FastProver::new(gkr_round.clone(), &*random_gate);
+        assert_eq!(output_claim.evaluate(&random_gate), fast_prover.compute_sum());
+
+
+        let mut fast_prover = FastProver::new(gkr_round.clone(), &*random_gate);
+        assert_eq!(output_claim.evaluate(&random_gate), fast_prover.compute_sum());
         let m0 = fast_prover.compute_sum();
         let verifier = StandardVerifier::new(100, m0, gkr_round);
         Self::run_layer(fast_prover, verifier, s_i_plus_1)
@@ -156,7 +225,7 @@ mod tests {
 
     #[test]
     fn simulate_full_gkr_round_with_naive_prover() {
-        let gkr_round: GKRRound<Fr> = GKRRound::new_rand();
+        let gkr_round: GKRRound<Fr> = GKRRound::new_rand(7);
         let k = gkr_round.vi().num_vars;
         let fixed_gate = random_gate::<Fr>(gkr_round.gate_labes());
 

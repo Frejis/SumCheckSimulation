@@ -2,7 +2,7 @@
 This file will contain structures relevant to setting up the proof system.
 */
 use ark_ff::Field;
-use ark_poly::SparseMultilinearExtension;
+use ark_poly::{univariate, MultilinearExtension, SparseMultilinearExtension};
 use crate::gkr::layer::LayerReductionMessage;
 
 pub trait SumCheckProver<F: Field> {
@@ -14,7 +14,11 @@ pub trait SumCheckProver<F: Field> {
 
     fn fix_variable(&mut self, random_field_element: F);
 
-    fn layer_reduction_message(&self, s_i_plus_1: usize) -> LayerReductionMessage<F>;
+    fn restrict_poly<M: MultilinearExtension<F>>(
+    b: &[F],
+    c: &[F],
+    mle: &M,
+    ) -> univariate::SparsePolynomial<F>;
 }
 
 pub trait SumCheckVerifier<F: Field> {

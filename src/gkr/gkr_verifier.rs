@@ -1,5 +1,6 @@
 use ark_ff::{Field, Zero};
 use ark_poly::{DenseMultilinearExtension, Polynomial, SparseMultilinearExtension};
+use ark_poly::univariate::SparsePolynomial;
 use ark_std::test_rng;
 use crate::gkr::layer::InputLayer;
 use crate::gkr::predicates::{AddPredicate, MultPredicate};
