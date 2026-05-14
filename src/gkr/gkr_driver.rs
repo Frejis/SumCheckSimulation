@@ -40,8 +40,8 @@ impl<F: Field> GKRDriver<F> {
     /// Runs sum check for s_i_plus_1 rounds.
     /// Returns a random gate chosen via reducing to claims to a claim about one
     /// Returns the alleged claim for that position.
-    pub fn run_layer (
-        mut prover: FastProver<F>,
+    pub fn run_layer<T: SumCheckProver<F>> (
+        mut prover: T,
         mut verifier: StandardVerifier<F>,
         s_i_plus_1: usize,
     ) -> (Vec<F>, F)
@@ -64,7 +64,7 @@ impl<F: Field> GKRDriver<F> {
         (next_layer_gate, claim)
     }
 
-    pub fn run_circuit (
+    pub fn run_circuit<T: SumCheckProver<F>> (
         &mut self,
     ) -> (Duration, Duration)
     {
@@ -72,15 +72,7 @@ impl<F: Field> GKRDriver<F> {
         let mut next_gate = vec![F::zero()];
         // This is for all rounds except the last round.
         for i in 0..self.circuit.layers.len() {
-            let s_i_plus_1 = self.get_correct_next_layer_size(i);
-            let value_extension = self.get_correct_value_extension(i);
-            if i == 0 {
-                println!("Running initial round");
-                (next_gate, mi) = self.handle_first_round(&mut next_gate, s_i_plus_1, &value_extension);
-            } else {
-                println!("Handling other rounds");
-                (next_gate, mi) = self.handle_intermediate_rounds(mi, &mut next_gate, s_i_plus_1, &value_extension, i);
-            }
+            (next_gate, mi) = self.handle_sum_check_for_layer::<T>(mi, &mut next_gate, i);
         }
 
         // This function panics == Verifier rejects.
@@ -88,6 +80,18 @@ impl<F: Field> GKRDriver<F> {
         self.verifier.verify_final_claimed_value_point(next_gate, mi);
 
         (Duration::from_hours(2), Duration::from_hours(2))
+    }
+
+    fn handle_sum_check_for_layer<T: SumCheckProver<F>>(&mut self, mi: F, mut next_gate: &mut Vec<F>, i: usize) -> (Vec<F>, F) {
+        let s_i_plus_1 = self.get_correct_next_layer_size(i);
+        let value_extension = self.get_correct_value_extension(i);
+        if i == 0 {
+            println!("Running initial round");
+            self.handle_first_round::<T>(&mut next_gate, s_i_plus_1, &value_extension)
+        } else {
+            println!("Handling other rounds");
+            self.handle_intermediate_rounds::<T>(mi, &mut next_gate, s_i_plus_1, &value_extension, i)
+        }
     }
 
     fn get_correct_next_layer_size(&mut self, i: usize) -> usize {
@@ -112,7 +116,7 @@ impl<F: Field> GKRDriver<F> {
         }
     }
 
-    fn handle_intermediate_rounds(&mut self,
+    fn handle_intermediate_rounds<T: SumCheckProver<F>>(&mut self,
                                   mi: F,
                                   next_gate: &mut Vec<F>,
                                   s_i_plus_1: usize,
@@ -121,29 +125,31 @@ impl<F: Field> GKRDriver<F> {
     ) -> (Vec<F>, F) {
         let (add_pred, mult_pred) = &self.gkrprover.predicates()[layer];
         let gkr_round: GKRRound<F> = GKRRound::new(&mult_pred.pred, &add_pred.pred, &value_extension, &value_extension);
-        let mut fast_prover = FastProver::new(gkr_round.clone(), &*next_gate);
-        assert_eq!(mi, fast_prover.compute_sum());
-        let verifier = StandardVerifier::new(100, mi, gkr_round);
-        Self::run_layer(fast_prover, verifier, s_i_plus_1)
+        let mut prover = T::new(gkr_round.clone(), &*next_gate);
+        assert_eq!(mi, prover.compute_sum());
+        let verifier = StandardVerifier::new(100, mi);
+        Self::run_layer(prover, verifier, s_i_plus_1)
     }
 
-    fn handle_first_round(&mut self,
+    fn handle_first_round<T: SumCheckProver<F>>(&mut self,
                           next_gate: &mut Vec<F>,
                           s_i_plus_1: usize,
-                          value_extension: &DenseMultilinearExtension<F>
+                          value_extension: &DenseMultilinearExtension<F>,
     ) -> (Vec<F>, F) {
         let output_claim = self.gkrprover.get_output_claim();
         let (add_pred, mult_pred) = &self.gkrprover.predicates()[0];
         let gkr_round: GKRRound<F> = GKRRound::new(&mult_pred.pred, &add_pred.pred, &value_extension.clone(), &value_extension.clone());
+        let mut prover = T::new(gkr_round.clone(), &*next_gate);
+
+        assert_eq!(output_claim.evaluate(&next_gate), prover.compute_sum()); // This will be kept here as a sanity check.
+
+
         let mut fast_prover = FastProver::new(gkr_round.clone(), &*next_gate);
 
-        assert_eq!(output_claim.evaluate(&next_gate), fast_prover.compute_sum()); // This will be kept here as a sanity check.
-
-
-        let mut fast_prover = FastProver::new(gkr_round.clone(), &*next_gate);
         assert_eq!(output_claim.evaluate(&next_gate), fast_prover.compute_sum());
+
         let m0 = fast_prover.compute_sum();
-        let verifier = StandardVerifier::new(100, m0, gkr_round);
+        let verifier = StandardVerifier::new(100, m0);
         Self::run_layer(fast_prover, verifier, s_i_plus_1)
     }
 }
@@ -169,7 +175,7 @@ mod tests {
 
         // IMPORTANT: verifier initial claim must match prover's current sum.
         let initial_claim = prover.compute_sum();
-        let verifier = StandardVerifier::new(3, initial_claim, gkr_round.clone());
+        let verifier = StandardVerifier::new(3, initial_claim);
 
         let (next_r, next_claim) = GKRDriver::run_layer(prover, verifier, k);
 

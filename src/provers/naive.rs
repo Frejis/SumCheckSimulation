@@ -1,8 +1,8 @@
 use ark_ff::Field;
 use ark_poly::{DenseMultilinearExtension, MultilinearExtension, Polynomial, SparseMultilinearExtension};
-use ark_poly::univariate::SparsePolynomial;
 use crate::gkr::gkr_round::GKRRound;
 use crate::gkr::layer::LayerReductionMessage;
+use crate::provers::fast::FastProver;
 use crate::structures::data_structures::SumCheckProver;
 use crate::util::{index_to_field_element};
 
@@ -12,6 +12,7 @@ pub struct NaiveProver<F: Field> {
     fixed_mult: SparseMultilinearExtension<F>,
     // The fixed addition gate for a given gate.
     fixed_add: SparseMultilinearExtension<F>,
+    fixed_variables: Vec<F>,
     layer_value_mle: DenseMultilinearExtension<F>,
 }
 
@@ -27,17 +28,10 @@ impl<F: Field> NaiveProver<F> {
             gkr_round,
             fixed_mult,
             fixed_add,
+            fixed_variables: Vec::new(),
         }
     }
-
-    fn get_mult_fixed(&self) -> SparseMultilinearExtension<F> {
-        self.fixed_mult.clone()
-    }
-
-    fn get_add_fixed(&self) -> SparseMultilinearExtension<F> {
-        self.fixed_add.clone()
-    }
-
+    
     fn calculate_sum_naive(
         &self,
     ) -> F {
@@ -102,7 +96,6 @@ impl<F: Field> NaiveProver<F> {
         g: &[F],
         f: &F,
     ) -> F {
-        let dim = f2.num_vars;
         let mult_predicate_at_gate = mult_predicate.fix_variables(g);
         let add_predicate_at_gate = add_predicate.fix_variables(g);
         let mut sum_xy = F::zero();
@@ -127,7 +120,7 @@ impl<F: Field> NaiveProver<F> {
 }
 
 impl<F: Field> SumCheckProver<F> for NaiveProver<F> {
-    // Needs to be refactored just my last sumcheck which I know works.
+    // Needs to be refactored just my last Sum-check which I know works.
     fn compute_sum(&mut self) -> F {
         self.calculate_sum_naive()
     }
@@ -169,6 +162,7 @@ impl<F: Field> SumCheckProver<F> for NaiveProver<F> {
         2. Then fix in vi. Once vi has no more variables fix vj.
         */
         let field_packed = &[random_field_element];
+        self.fixed_variables.push(random_field_element);
         self.fixed_mult = self.fixed_mult.fix_variables(field_packed);
         self.fixed_add = self.fixed_add.fix_variables(field_packed);
 
@@ -179,8 +173,20 @@ impl<F: Field> SumCheckProver<F> for NaiveProver<F> {
         }
     }
 
-    fn restrict_poly<M: MultilinearExtension<F>>(b: &[F], c: &[F], mle: &M) -> SparsePolynomial<F> {
-        todo!()
+    /// TODO refactor this possibly currently just copy+pasted from the fast implementation
+    /// I could probably refacter them to be the same just not a priority rn.
+    fn layer_reduction_message(&self, s_i_plus_1: usize) -> LayerReductionMessage<F> {
+        let mle = &self.layer_value_mle;
+        let b_star = self.fixed_variables[0..s_i_plus_1].to_vec();
+        let c_star = self.fixed_variables[s_i_plus_1..2*s_i_plus_1].to_vec();
+        let poly = FastProver::restrict_poly(&*b_star, &*c_star, mle);
+        let z_1 = mle.evaluate(&b_star);
+        let z_2 = mle.evaluate(&c_star);
+        LayerReductionMessage::new(z_1, z_2, poly)
+    }
+
+    fn new(gkr_round: GKRRound<F>, gate: &[F]) -> Self {
+        NaiveProver::new(gkr_round, gate)
     }
 }
 
@@ -188,7 +194,7 @@ impl<F: Field> SumCheckProver<F> for NaiveProver<F> {
 mod tests {
     use ark_bls12_381::Fr;
     use ark_ff::{One, Zero};
-    use ark_poly::{DenseMultilinearExtension, MultilinearExtension, SparseMultilinearExtension};
+    use ark_poly::MultilinearExtension;
     use ark_std::{test_rng, UniformRand};
     use crate::gkr::gkr_round::GKRRound;
     use crate::provers::naive::NaiveProver;

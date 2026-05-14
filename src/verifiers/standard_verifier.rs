@@ -2,7 +2,6 @@ use ark_ff::Field;
 use ark_poly::{Polynomial, SparseMultilinearExtension};
 use ark_std::rand::{SeedableRng, rngs::StdRng};
 use ark_std::test_rng;
-use crate::gkr::gkr_round::GKRRound;
 use crate::gkr::layer::LayerReductionMessage;
 use crate::structures::data_structures::SumCheckVerifier;
 use crate::util::line_point;
@@ -11,7 +10,6 @@ pub struct StandardVerifier<F: Field> {
     random_points_chosen: Vec<F>,
     claimed_value: F,
     max_degree: usize,
-    _gkr_round: GKRRound<F>,
     rng: StdRng,
 }
 
@@ -43,12 +41,11 @@ impl<F: Field> StandardVerifier<F> {
 }
 
 impl<F: Field> StandardVerifier<F> {
-    pub fn new(max_degree: usize, claimed_value: F, gkr_round: GKRRound<F>) -> Self {
+    pub fn new(max_degree: usize, claimed_value: F) -> Self {
         StandardVerifier {
             random_points_chosen: Vec::new(),
             claimed_value,
             max_degree,
-            _gkr_round: gkr_round,
             rng: StdRng::seed_from_u64(42),
         }
     }

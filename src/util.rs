@@ -1,6 +1,6 @@
 use std::iter;
 use ark_ff::Field;
-use ark_poly::{univariate, DenseMultilinearExtension, DenseUVPolynomial, MultilinearExtension, Polynomial, SparseMultilinearExtension};
+use ark_poly::{univariate, DenseMultilinearExtension, DenseUVPolynomial, MultilinearExtension, SparseMultilinearExtension};
 use ark_poly::univariate::DensePolynomial;
 use ark_std::test_rng;
 
@@ -78,26 +78,6 @@ pub fn line<F: Field>(b: &[F], c: &[F]) -> Vec<univariate::SparsePolynomial<F>> 
             univariate::SparsePolynomial::from_coefficients_slice(&[(0, *b), (1, *c - b)])
         })
         .collect()
-}
-
-pub fn interpolate_univariate<F: Field>(evals: &[F], points: &[F]) -> DensePolynomial<F> {
-    assert_eq!(evals.len(), points.len());
-    let mut poly = DensePolynomial::from_coefficients_vec(vec![F::zero()]);
-    for i in 0..evals.len() {
-        let mut term = DensePolynomial::from_coefficients_vec(vec![evals[i]]);
-        for j in 0..evals.len() {
-            if i == j {
-                continue;
-            }
-            let denominator = (points[i] - points[j]).inverse().unwrap();
-            // (X - points[j]) * denominator = denominator * X - points[j] * denominator
-            let sub_poly =
-                DensePolynomial::from_coefficients_vec(vec![-points[j] * denominator, denominator]);
-            term = term.naive_mul(&sub_poly);
-        }
-        poly = poly + term;
-    }
-    poly
 }
 
 #[cfg(test)]

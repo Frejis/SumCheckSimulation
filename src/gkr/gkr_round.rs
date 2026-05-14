@@ -1,6 +1,6 @@
 use ark_ff::Field;
 use ark_poly::{DenseMultilinearExtension, SparseMultilinearExtension};
-use crate::structures::circuit_structures::GateType;
+use crate::gkr::predicates::{AddPredicate, MultPredicate};
 use crate::util::random_gkr_round_gates;
 
 #[derive(Clone)]
@@ -69,6 +69,20 @@ impl<F: Field> GKRRound<F> {
             gate_labes: vi.num_vars,
             vi: vi.clone(),
             vj: vj.clone(),
+        }
+    }
+    
+    pub fn new_combined(
+        mult_predicate: MultPredicate<F>,
+        add_predicate: AddPredicate<F>,
+        v: DenseMultilinearExtension<F>,
+    ) -> GKRRound<F> {
+        GKRRound {
+            mult_predicate: mult_predicate.pred,
+            add_predicate: add_predicate.pred,
+            vi: v.clone(),
+            vj: v.clone(),
+            gate_labes: v.num_vars,
         }
     }
 

@@ -1,6 +1,5 @@
-use std::iter;
-use ark_ff::{Field, Zero};
-use ark_poly::{univariate, DenseMultilinearExtension, DenseUVPolynomial, MultilinearExtension, Polynomial, SparseMultilinearExtension};
+use ark_ff::{Field};
+use ark_poly::{DenseMultilinearExtension, MultilinearExtension, Polynomial, SparseMultilinearExtension};
 use crate::gkr::gkr_round::GKRRound;
 use crate::gkr::layer::LayerReductionMessage;
 use crate::structures::data_structures::SumCheckProver;
@@ -178,37 +177,12 @@ impl<F: Field> SumCheckProver<F> for FastProver<F> {
         self.fix_variable_add(r);
     }
 
-    /// This function is taken from: https://montekki.github.io/thaler-ch4-4/
-    fn restrict_poly<M: MultilinearExtension<F>>(
-        b: &[F],
-        c: &[F],
-        mle: &M,
-    ) -> univariate::SparsePolynomial<F> {
-        let k: Vec<_> = iter::zip(b, c).map(|(b, c)| *c - b).collect();
+    fn layer_reduction_message(&self, s_i_plus_1: usize) -> LayerReductionMessage<F> {
+        FastProver::layer_reduction_message(self, s_i_plus_1)
+    }
 
-        let evaluations = mle.to_evaluations();
-        let num_vars = mle.num_vars();
-
-        let mut res = univariate::SparsePolynomial::zero();
-
-        for (i, evaluation) in evaluations.iter().enumerate() {
-            let mut p = univariate::SparsePolynomial::from_coefficients_vec(vec![(0, *evaluation)]);
-            for bit in 0..num_vars {
-                let mut b =
-                    univariate::SparsePolynomial::from_coefficients_vec(vec![(0, b[bit]), (1, k[bit])]);
-
-                if i & (1 << bit) == 0 {
-                    b = (&univariate::DensePolynomial::from_coefficients_vec(vec![F::one()]) - &b)
-                        .into();
-                }
-
-                p = p.mul(&b);
-            }
-
-            res += &p;
-        }
-
-        res
+    fn new(gkr_round: GKRRound<F>, gate: &[F]) -> Self {
+        FastProver::new(gkr_round, gate)
     }
 }
 
@@ -222,7 +196,7 @@ impl<F: Field> FastProver<F> {
         let mut new_q = Vec::with_capacity(half);
 
         for i in 0..half {
-            // LSB bit = 0 hver gang.
+            // LSB bit = 0 every time.
             let index_0 = i << 1;
             let index_1 = index_0 | 1;
             let a_0 = self.mult_p[index_0];
@@ -245,7 +219,7 @@ impl<F: Field> FastProver<F> {
         let mut new_add_pred_f3 = Vec::with_capacity(half);
 
         for i in 0..half {
-            // LSB bit = 0 hver gang.
+            // LSB bit = 0 every time.
             let index_0 = i << 1;
             let index_1 = index_0 | 1;
             let pred_0 = self.add_pred[index_0];
@@ -274,7 +248,6 @@ mod test {
     use crate::gkr::gkr_round::GKRRound;
     use crate::provers::fast::FastProver;
     use crate::provers::naive::NaiveProver;
-    use crate::util;
     use crate::util::random_gate;
     use crate::verifiers::standard_verifier::StandardVerifier;
 
@@ -298,8 +271,8 @@ mod test {
     fn create_naive_and_fast_prover() -> (FastProver<Fr>, NaiveProver<Fr>) {
         let gkr_round: GKRRound<Fr> = GKRRound::new_rand(7);
         let random_gate = random_gate(gkr_round.gate_labes());
-        let mut fast_prover = FastProver::new(gkr_round.clone(), &random_gate);
-        let mut naive_prover = NaiveProver::new(gkr_round, &random_gate);
+        let fast_prover = FastProver::new(gkr_round.clone(), &random_gate);
+        let naive_prover = NaiveProver::new(gkr_round, &random_gate);
         (fast_prover, naive_prover)
     }
 
@@ -331,7 +304,7 @@ mod test {
     #[test]
     fn test_fix_variable_value_zero() {
         let gkr_round = GKRRound::new_rand(7);
-        let fixed_gate = util::random_gate(gkr_round.gate_labes());
+        let fixed_gate = random_gate(gkr_round.gate_labes());
 
         let mut prover: FastProver<Fr> = FastProver::new(gkr_round, &fixed_gate);
 
@@ -343,7 +316,7 @@ mod test {
     #[test]
     fn test_fix_variable_value_one() {
         let gkr_round = GKRRound::new_rand(7);
-        let fixed_gate = util::random_gate(gkr_round.gate_labes());
+        let fixed_gate = random_gate(gkr_round.gate_labes());
 
         let mut prover: FastProver<Fr> = FastProver::new(gkr_round, &fixed_gate);
 
@@ -414,7 +387,7 @@ mod test {
     #[test]
     fn test_fast_fix_same_as_fix_ark() {
         let gkr_round = GKRRound::new_rand(7);
-        let fixed_gate = util::random_gate(gkr_round.gate_labes());
+        let fixed_gate = random_gate(gkr_round.gate_labes());
 
         let mut prover: FastProver<Fr> = FastProver::new(gkr_round.clone(), &fixed_gate);
 
@@ -438,15 +411,15 @@ mod test {
         let gkr_round: GKRRound<Fr> = GKRRound::new_rand(7);
         let random_gate = random_gate(gkr_round.gate_labes());
         let mut fast_prover = FastProver::new(gkr_round.clone(), &random_gate);
-        // max degree is 5 for now, i think it should be 2.
-        let verifier = StandardVerifier::new(5, fast_prover.compute_sum(), gkr_round);
+        // max degree is 5 for now, I think it should be 2.
+        let verifier = StandardVerifier::new(5, fast_prover.compute_sum());
         let verifier_func = fast_prover.get_verifier_function();
         assert!(verifier.check_claimed_value(&verifier_func));
     }
 
     #[test]
     fn test_naive_agrees_with_fast_forall_variables() {
-        let mut gkr_round: GKRRound<Fr> = GKRRound::new_rand(7);
+        let gkr_round: GKRRound<Fr> = GKRRound::new_rand(7);
 
         let r_gate = random_gate(gkr_round.gate_labes());
         let mut fast_prover = FastProver::new(gkr_round.clone(), &r_gate);
