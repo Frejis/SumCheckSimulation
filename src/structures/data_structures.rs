@@ -2,6 +2,8 @@
 This file will contain structures relevant to setting up the proof system.
 */
 use std::iter;
+use std::ops::Add;
+use std::time::Duration;
 use ark_ff::{Field, Zero};
 use ark_poly::{univariate, DenseUVPolynomial, MultilinearExtension, SparseMultilinearExtension};
 use crate::gkr::gkr_round::GKRRound;
@@ -30,7 +32,7 @@ pub trait SumCheckProver<F: Field> {
         let num_vars = mle.num_vars();
 
         let mut res = univariate::SparsePolynomial::zero();
-        
+
 
         for (i, evaluation) in evaluations.iter().enumerate() {
             let mut p = univariate::SparsePolynomial::from_coefficients_vec(vec![(0, *evaluation)]);
@@ -51,7 +53,7 @@ pub trait SumCheckProver<F: Field> {
 
         res
     }
-    
+
     fn new(gkr_round: GKRRound<F>, gate: &[F]) -> Self;
 }
 
@@ -73,3 +75,34 @@ pub trait SumCheckVerifier<F: Field> {
 
     fn final_check(&self);
 }
+
+pub struct AnalysisResult {
+    verifier_time: Duration,
+    prover_time: Duration,
+}
+
+impl AnalysisResult {
+    pub fn new(verifier_time: Duration, prover_time: Duration) -> Self {
+        Self { verifier_time, prover_time }
+    }
+
+    pub fn add_verifier_time(&mut self, time: Duration) {
+        self.verifier_time += time;
+    }
+
+    pub fn print(&self) {
+        println!("Prover spent: {:?}. Verifier spent: {:?}", self.prover_time, self.verifier_time);
+    }
+}
+
+impl Add for AnalysisResult {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        AnalysisResult::new(
+            self.verifier_time + rhs.verifier_time,
+            self.prover_time + rhs.prover_time,
+        )
+    }
+}
+
