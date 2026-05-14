@@ -44,7 +44,7 @@ impl<F: Field> GKRDriver<F> {
         mut prover: T,
         mut verifier: StandardVerifier<F>,
         s_i_plus_1: usize,
-    ) -> (Vec<F>, F)
+    ) -> LayerConnection<F>
     {
         let total_rounds = 2 * s_i_plus_1;
         for _ in 0..total_rounds {
@@ -61,7 +61,7 @@ impl<F: Field> GKRDriver<F> {
 
         let msg = prover.layer_reduction_message(s_i_plus_1);
         let (next_layer_gate, claim) = verifier.handle_layer_reduction_message(msg, s_i_plus_1);
-        (next_layer_gate, claim)
+        LayerConnection::new(next_layer_gate, claim)
     }
 
     pub fn run_circuit<T: SumCheckProver<F>> (
@@ -89,22 +89,20 @@ impl<F: Field> GKRDriver<F> {
         let value_extension = self.get_correct_value_extension(i);
         if i == 0 {
             println!("Running initial round");
-            let (gate, claim ) = self.handle_first_round::<T>(
+            self.handle_first_round::<T>(
                 &mut layer_connection.next_gate,
                 s_i_plus_1,
                 &value_extension
-            );
-            LayerConnection::new(gate, claim)
+            )
         } else {
             println!("Handling round {i}.");
-            let (gate, claim) = self.handle_intermediate_rounds::<T>(
+            self.handle_intermediate_rounds::<T>(
                 layer_connection.claim_mi,
                 &mut layer_connection.next_gate,
                 s_i_plus_1,
                 &value_extension,
                 i,
-            );
-            LayerConnection::new(gate, claim)
+            )
         }
     }
 
@@ -136,7 +134,7 @@ impl<F: Field> GKRDriver<F> {
                                   s_i_plus_1: usize,
                                   value_extension: &DenseMultilinearExtension<F>,
                                   layer: usize,
-    ) -> (Vec<F>, F) {
+    ) -> LayerConnection<F> {
         let (add_pred, mult_pred) = &self.gkrprover.predicates()[layer];
         let gkr_round: GKRRound<F> = GKRRound::new(&mult_pred.pred, &add_pred.pred, &value_extension, &value_extension);
         let mut prover = T::new(gkr_round.clone(), &*next_gate);
@@ -149,7 +147,7 @@ impl<F: Field> GKRDriver<F> {
                           next_gate: &mut Vec<F>,
                           s_i_plus_1: usize,
                           value_extension: &DenseMultilinearExtension<F>,
-    ) -> (Vec<F>, F) {
+    ) -> LayerConnection<F>  {
         let output_claim = self.gkrprover.get_output_claim();
         let (add_pred, mult_pred) = &self.gkrprover.predicates()[0];
         let gkr_round: GKRRound<F> = GKRRound::new(&mult_pred.pred, &add_pred.pred, &value_extension.clone(), &value_extension.clone());
@@ -191,11 +189,11 @@ mod tests {
         let initial_claim = prover.compute_sum();
         let verifier = StandardVerifier::new(3, initial_claim);
 
-        let (next_r, next_claim) = GKRDriver::run_layer(prover, verifier, k);
+        let layer = GKRDriver::run_layer(prover, verifier, k);
 
         // Folded claim must match direct W_{i+1}(r_next) evaluation.
-        let expected = gkr_round.vi().evaluate(&next_r);
-        assert_eq!(next_claim, expected);
+        let expected = gkr_round.vi().evaluate(&layer.next_gate);
+        assert_eq!(layer.claim_mi, expected);
     }
 
 
