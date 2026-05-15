@@ -1,5 +1,6 @@
 use ark_ff::Field;
 use ark_poly::{Polynomial, SparseMultilinearExtension};
+use ark_poly::univariate::SparsePolynomial;
 use ark_std::rand::{SeedableRng, rngs::StdRng};
 use ark_std::test_rng;
 use crate::gkr::layer::LayerReductionMessage;
@@ -52,7 +53,7 @@ impl<F: Field> StandardVerifier<F> {
 }
 
 impl<F: Field> SumCheckVerifier<F> for StandardVerifier<F> {
-    fn verify_degree(&self, fx: &SparseMultilinearExtension<F>) -> bool {
+    fn verify_degree(&self, fx: &SparsePolynomial<F>) -> bool {
         fx.degree() < self.max_degree
     }
 
@@ -65,12 +66,12 @@ impl<F: Field> SumCheckVerifier<F> for StandardVerifier<F> {
         rand_element
     }
 
-    fn check_claimed_value(&self, gx: &SparseMultilinearExtension<F>) -> bool {
-        let checked_claim: F = gx.evaluations.iter().map(|(_, &v)| v).sum();
+    fn check_claimed_value(&self, gx: &SparsePolynomial<F>) -> bool {
+        let checked_claim: F = gx.iter().rfold(F::zero(), |acc, (_, elem)| {*elem + acc});
         checked_claim == self.claimed_value
     }
 
-    fn handle_round(&mut self, fx: &SparseMultilinearExtension<F>) -> F {
+    fn handle_round(&mut self, fx: &SparsePolynomial<F>) -> F {
         if !self.verify_degree(fx) {
             panic!()
         }

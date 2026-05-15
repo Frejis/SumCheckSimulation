@@ -5,7 +5,8 @@ use std::iter;
 use std::ops::Add;
 use std::time::Duration;
 use ark_ff::{Field, Zero};
-use ark_poly::{univariate, DenseUVPolynomial, MultilinearExtension, SparseMultilinearExtension};
+use ark_poly::{univariate, DenseUVPolynomial, MultilinearExtension};
+use ark_poly::univariate::SparsePolynomial;
 use crate::gkr::gkr_round::GKRRound;
 use crate::gkr::layer::LayerReductionMessage;
 
@@ -14,7 +15,7 @@ pub trait SumCheckProver<F: Field> {
     fn compute_sum(&mut self) -> F;
 
     // Creates a function that has one variable (meaning it fixes all other variables)
-    fn get_verifier_function(&mut self) -> SparseMultilinearExtension<F>;
+    fn get_verifier_function(&mut self) -> Vec<(usize, F)>;
 
     fn fix_variable(&mut self, random_field_element: F);
 
@@ -25,20 +26,20 @@ pub trait SumCheckProver<F: Field> {
         b: &[F],
         c: &[F],
         mle: &M,
-    ) -> univariate::SparsePolynomial<F> {
+    ) -> SparsePolynomial<F> {
         let k: Vec<_> = iter::zip(b, c).map(|(b, c)| *c - b).collect();
 
         let evaluations = mle.to_evaluations();
         let num_vars = mle.num_vars();
-
-        let mut res = univariate::SparsePolynomial::zero();
+        
+        let mut res = SparsePolynomial::zero();
 
 
         for (i, evaluation) in evaluations.iter().enumerate() {
-            let mut p = univariate::SparsePolynomial::from_coefficients_vec(vec![(0, *evaluation)]);
+            let mut p = SparsePolynomial::from_coefficients_vec(vec![(0, *evaluation)]);
             for bit in 0..num_vars {
                 let mut b =
-                    univariate::SparsePolynomial::from_coefficients_vec(vec![(0, b[bit]), (1, k[bit])]);
+                    SparsePolynomial::from_coefficients_vec(vec![(0, b[bit]), (1, k[bit])]);
 
                 if i & (1 << bit) == 0 {
                     b = (&univariate::DensePolynomial::from_coefficients_vec(vec![F::one()]) - &b)
@@ -59,17 +60,17 @@ pub trait SumCheckProver<F: Field> {
 
 pub trait SumCheckVerifier<F: Field> {
     // Has to check the degree of the function to ensure no one cheats.
-    fn verify_degree(&self, fx: &SparseMultilinearExtension<F>) -> bool;
+    fn verify_degree(&self, fx: &SparsePolynomial<F>) -> bool;
 
     // Returns a random field element from the verifier
     fn get_random_field_element(&mut self) -> F;
 
     // Takes as input a multilinear extension and checks that for each field their sum is the claim.
-    fn check_claimed_value(&self, fx: &SparseMultilinearExtension<F>) -> bool;
+    fn check_claimed_value(&self, fx: &SparsePolynomial<F>) -> bool;
 
     /// Should ideally take a function by the prover and do all necessary checks
     /// If any fails then it panics, and if everything is good then it returns a random field element.
-    fn handle_round(&mut self, fx: &SparseMultilinearExtension<F>) -> F;
+    fn handle_round(&mut self, fx: &SparsePolynomial<F>) -> F;
 
     fn set_claim(&mut self, claim: F);
 

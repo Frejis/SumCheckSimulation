@@ -147,7 +147,7 @@ impl<F: Field> SumCheckProver<F> for FastProver<F> {
         sum
     }
 
-    fn get_verifier_function(&mut self) -> SparseMultilinearExtension<F> {
+    fn get_verifier_function(&mut self) -> Vec<(usize, F)> {
         let mut s0 = F::zero();
         let mut s1 = F::zero();
 
@@ -168,7 +168,7 @@ impl<F: Field> SumCheckProver<F> for FastProver<F> {
             else { s1 += value; }
         }
 
-        SparseMultilinearExtension::from_evaluations(1, vec![&(0, s0), &(1, s1)])
+        vec![(0, s0), (1, s1)]
     }
 
     fn fix_variable(&mut self, r: F) {
@@ -243,6 +243,7 @@ impl<F: Field> FastProver<F> {
 mod test {
     use ark_bls12_381::Fr;
     use ark_ff::{One, Zero};
+    use ark_poly::univariate::SparsePolynomial;
     use ark_std::{test_rng, UniformRand};
     use crate::structures::data_structures::{SumCheckProver, SumCheckVerifier};
     use crate::gkr::gkr_round::GKRRound;
@@ -298,7 +299,7 @@ mod test {
 
         let verifier_func = prover.get_verifier_function();
         prover.fix_variable(Fr::zero());
-        assert_eq!(prover.compute_sum(), verifier_func[0]);
+        assert_eq!(prover.compute_sum(), verifier_func[0].1);
     }
 
     #[test]
@@ -310,7 +311,7 @@ mod test {
 
         let verifier_func = prover.get_verifier_function();
         prover.fix_variable(Fr::zero());
-        assert_eq!(prover.compute_sum(), verifier_func[0]);
+        assert_eq!(prover.compute_sum(), verifier_func[0].1);
     }
 
     #[test]
@@ -322,7 +323,7 @@ mod test {
 
         let verifier_func = prover.get_verifier_function();
         prover.fix_variable(Fr::one());
-        assert_eq!(prover.compute_sum(), verifier_func[1]);
+        assert_eq!(prover.compute_sum(), verifier_func[1].1);
     }
 
     #[test]
@@ -331,8 +332,8 @@ mod test {
         let fast_verifier_func = fast.get_verifier_function();
         let naive_verifier_func = naive.get_verifier_function();
 
-        assert_eq!(naive_verifier_func[1] + naive_verifier_func[0],
-                   fast_verifier_func[1] + fast_verifier_func[0]
+        assert_eq!(naive_verifier_func[1].1 + naive_verifier_func[0].1,
+                   fast_verifier_func[1].1 + fast_verifier_func[0].1
         );
         assert_eq!(naive_verifier_func[1], fast_verifier_func[1]);
         assert_eq!(naive_verifier_func[0], fast_verifier_func[0]);
@@ -347,8 +348,8 @@ mod test {
         fast.fix_variable(Fr::one());
         naive.fix_variable(Fr::one());
 
-        assert_eq!(fast.compute_sum(), fast_verifier_func[1]);
-        assert_eq!(naive.compute_sum(), naive_verifier_func[1]);
+        assert_eq!(fast.compute_sum(), fast_verifier_func[1].1);
+        assert_eq!(naive.compute_sum(), naive_verifier_func[1].1);
         assert_eq!(naive_verifier_func[1], fast_verifier_func[1]);
     }
 
@@ -412,9 +413,10 @@ mod test {
         let random_gate = random_gate(gkr_round.gate_labes());
         let mut fast_prover = FastProver::new(gkr_round.clone(), &random_gate);
         // max degree is 5 for now, I think it should be 2.
-        let verifier = StandardVerifier::new(5, fast_prover.compute_sum());
-        let verifier_func = fast_prover.get_verifier_function();
-        assert!(verifier.check_claimed_value(&verifier_func));
+        let verifier = StandardVerifier::new(2, fast_prover.compute_sum());
+        let points = fast_prover.get_verifier_function();
+        let x = verifier.check_claimed_value(&SparsePolynomial::from_coefficients_vec(points));
+        assert!(x);
     }
 
     #[test]

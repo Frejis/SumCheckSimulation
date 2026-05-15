@@ -1,7 +1,7 @@
 use std::iter;
 use ark_ff::Field;
 use ark_poly::{univariate, DenseMultilinearExtension, DenseUVPolynomial, MultilinearExtension, SparseMultilinearExtension};
-use ark_poly::univariate::DensePolynomial;
+use ark_poly::univariate::{DensePolynomial, SparsePolynomial};
 use ark_std::test_rng;
 
 /// Originally taken from Arkworks.
@@ -78,6 +78,10 @@ pub fn line<F: Field>(b: &[F], c: &[F]) -> Vec<univariate::SparsePolynomial<F>> 
             univariate::SparsePolynomial::from_coefficients_slice(&[(0, *b), (1, *c - b)])
         })
         .collect()
+}
+
+pub fn sparse_polynomial<F: Field>(evaluations: Vec<(usize, F)>) -> SparsePolynomial<F> {
+    SparsePolynomial::from_coefficients_vec(evaluations)
 }
 
 #[cfg(test)]

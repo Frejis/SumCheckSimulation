@@ -125,7 +125,7 @@ impl<F: Field> SumCheckProver<F> for NaiveProver<F> {
         self.calculate_sum_naive()
     }
 
-    fn  get_verifier_function(&mut self) -> SparseMultilinearExtension<F> {
+    fn  get_verifier_function(&mut self) -> Vec<(usize, F)> {
         let mut s0 = F::zero();
         let mut s1 = F::zero();
 
@@ -153,7 +153,7 @@ impl<F: Field> SumCheckProver<F> for NaiveProver<F> {
                 s1 += value;
             }
         }
-        SparseMultilinearExtension::from_evaluations(1, vec![&(0, s0), &(1, s1)])
+        vec![(0, s0), (1, s1)]
     }
 
     fn fix_variable(&mut self, random_field_element: F) {
@@ -194,7 +194,8 @@ impl<F: Field> SumCheckProver<F> for NaiveProver<F> {
 mod tests {
     use ark_bls12_381::Fr;
     use ark_ff::{One, Zero};
-    use ark_poly::MultilinearExtension;
+    use ark_poly::Polynomial;
+    use ark_poly::univariate::SparsePolynomial;
     use ark_std::{test_rng, UniformRand};
     use crate::gkr::gkr_round::GKRRound;
     use crate::provers::naive::NaiveProver;
@@ -221,29 +222,13 @@ mod tests {
 
         let mut prover: NaiveProver<Fr> = NaiveProver::new(gkr_round, &fixed_gate);
         // Now we test the g_func gives what we expect
-        let verifier_func = prover.get_verifier_function();
+        let points_from_prover = prover.get_verifier_function();
+        let verifier_func = SparsePolynomial::from_coefficients_vec(points_from_prover);
         // now we evaluate this function at Fr::zero() and Fr::one() and it has to be equal to the sum it claims.
         // Just as the verifier would do.
-        let verifier_sum = verifier_func.evaluations.iter().map(|(_, &v)| v).sum();
+        let verifier_sum = verifier_func.iter().rfold(Fr::zero(), |acc, (_, elem)| {*elem + acc});
         let claimed_sum = prover.compute_sum();
         assert_eq!(claimed_sum, verifier_sum);
-    }
-
-    #[test]
-    fn test_fixing_a_variable() {
-        let mut rng = test_rng();
-        let gkr_round = GKRRound::new_rand(7);
-        let fixed_gate = util::random_gate(gkr_round.gate_labes());
-
-        let mut prover: NaiveProver<Fr> = NaiveProver::new(gkr_round, &fixed_gate);
-
-        let old_verifier_vars = prover.get_verifier_function().num_vars();
-
-        let r_field = Fr::rand(&mut rng);
-        prover.fix_variable(r_field);
-
-        assert_eq!(prover.get_verifier_function().num_vars, old_verifier_vars);
-        assert_eq!(old_verifier_vars, 1);
     }
 
     #[test]
@@ -269,7 +254,7 @@ mod tests {
 
         let verifier_func = prover.get_verifier_function();
         prover.fix_variable(Fr::zero());
-        assert_eq!(prover.compute_sum(), verifier_func[0]);
+        assert_eq!(prover.compute_sum(), verifier_func[0].1);
     }
     #[test]
     fn test_naive_fix_same_as_fix_ark() {
