@@ -36,15 +36,13 @@ impl<F: Field> NaiveProver<F> {
         &self,
     ) -> F {
         let vi_variables = self.gkr_round.vi().num_vars;
-        let mult_predicate_at_gate = &self.fixed_mult;
-        let add_predicate_at_gate = &self.fixed_add;
         let mut sum_xy = F::zero();
         for x in 0..(1 << vi_variables) {
             let f2_x = self.gkr_round.vi()[x];
-            let mult_f1_gx = mult_predicate_at_gate
+            let mult_f1_gx = self.fixed_mult
                 .fix_variables(&index_to_field_element(x, vi_variables))
                 .to_dense_multilinear_extension();
-            let add_f1_gx = add_predicate_at_gate
+            let add_f1_gx = self.fixed_add
                 .fix_variables(&index_to_field_element(x, vi_variables))
                 .to_dense_multilinear_extension();
             for y in 0..(1 << self.gkr_round.vj.num_vars) {

@@ -1,4 +1,3 @@
-use std::time::Duration;
 use ark_bls12_381::{Fr, FrConfig};
 use ark_ff::{Field, Fp, MontBackend};
 use ark_std::test_rng;

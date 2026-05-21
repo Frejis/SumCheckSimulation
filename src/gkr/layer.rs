@@ -80,7 +80,7 @@ pub struct InputLayer<F: Field> {
 impl<F: Field> InputLayer<F> {
     pub(crate) fn random(input_size: &usize) -> Self {
         let mut res = Vec::new();
-        for i in 0..*input_size {
+        for _ in 0..*input_size {
             res.push(F::rand(&mut test_rng()))
         }
         Self::new(res)

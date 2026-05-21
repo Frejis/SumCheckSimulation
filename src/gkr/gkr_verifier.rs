@@ -1,11 +1,8 @@
 use ark_ff::{Field, Zero};
-use ark_poly::{DenseMultilinearExtension, Polynomial, SparseMultilinearExtension};
-use ark_poly::univariate::SparsePolynomial;
+use ark_poly::{DenseMultilinearExtension, Polynomial};
 use ark_std::test_rng;
 use crate::gkr::layer::InputLayer;
-use crate::gkr::predicates::{AddPredicate, MultPredicate};
-use crate::structures::circuit_structures::{EvaluatedGKRCircuit, GKRCircuit};
-use crate::structures::data_structures::{SumCheckProver, SumCheckVerifier};
+use crate::structures::circuit_structures::GKRCircuit;
 
 /// This file implements a GKR verifier
 /// The big difference from the sum-check verifier is that when evaluating the last round it will
@@ -42,7 +39,7 @@ impl<F: Field> GKRVerifier<F> {
     pub fn random_gate(&mut self, p0: &DenseMultilinearExtension<F>, gate_length: usize) -> Vec<F> {
         self.output_claim = p0.clone();
         let mut res = Vec::new();
-        for i in 0..gate_length {
+        for _ in 0..gate_length {
             let rand_element = F::rand(&mut test_rng());
             res.push(rand_element);
         }

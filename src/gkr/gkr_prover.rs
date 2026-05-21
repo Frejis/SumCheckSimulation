@@ -1,11 +1,9 @@
 use ark_ff::Field;
-use ark_poly::{DenseMultilinearExtension, MultilinearExtension, SparseMultilinearExtension};
+use ark_poly::{DenseMultilinearExtension, SparseMultilinearExtension};
 use crate::gkr::gkr_driver::log2_pow2;
-use crate::gkr::layer::{EvaluatedLayer, InputLayer, Layer};
+use crate::gkr::layer::InputLayer;
 use crate::gkr::predicates::{AddPredicate, MultPredicate};
-use crate::structures;
-use crate::structures::circuit_structures::{EvaluatedGKRCircuit, GKRCircuit, Gate, GateType};
-use crate::structures::data_structures::SumCheckProver;
+use crate::structures::circuit_structures::{EvaluatedGKRCircuit, GKRCircuit, GateType};
 
 pub struct GKRProver<F: Field> {
     circuit: GKRCircuit<F>,
@@ -15,8 +13,9 @@ pub struct GKRProver<F: Field> {
 }
 
 impl<F: Field> GKRProver<F> {
-    pub fn evaluated_circuit(&self) -> EvaluatedGKRCircuit<F> {
-        self.circuit.evaluate_circuit(&self.input)
+    pub fn evaluated_circuit(&mut self) -> EvaluatedGKRCircuit<F> {
+        self.evaluated_circuit = self.circuit.evaluate_circuit(&self.input);
+        self.evaluated_circuit.clone()
     }
 
     pub fn predicates(&self) -> &Vec<(AddPredicate<F>, MultPredicate<F>)> {
@@ -55,7 +54,7 @@ impl<F: Field> GKRProver<F> {
             // TODO: Refactor below into a method that makes sense.
             for (gate_idx, gate) in layer.gates.iter().enumerate() {
                 let left_index = gate.left << s_i;
-                let right_index = (gate.right << s_i + next_s_i);
+                let right_index = gate.right << s_i + next_s_i;
                 let index: usize = gate_idx | left_index | right_index;
                 match gate.predicate {
                     GateType::Add => add_terms.push((index, F::one())),
