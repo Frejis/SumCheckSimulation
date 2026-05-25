@@ -59,14 +59,13 @@ impl<F: Field> FastProver<F> {
     }
 
     fn initialize_phase_one(&mut self) {
-        self.init_phase_one_mult()
+        let dim = self.gkr_round.vi().num_vars;
+        let size = 1 << dim;
+        self.init_phase_one_mult_arrays(dim, size);
+        self.init_phase_one_add_arrays(dim, size);
     }
 
     fn initialize_phase_two(&mut self) {
-        self.init_phase_two_mult()
-    }
-
-    fn init_phase_two_mult(&mut self) {
         let size = 1 << self.gkr_round.vj.num_vars;
         self.init_p_q_zero(size);
         assert_eq!(self.fixed_variables.len(), self.gkr_round.vj.num_vars);
@@ -79,16 +78,10 @@ impl<F: Field> FastProver<F> {
         }
     }
 
+
     fn init_p_q_zero(&mut self, size: usize) {
         self.mult_p = vec![F::zero(); size];
         self.mult_q = vec![F::zero(); size];
-    }
-
-    fn init_phase_one_mult(&mut self) {
-        let dim = self.gkr_round.vi().num_vars;
-        let size = 1 << dim;
-        self.init_phase_one_mult_arrays(dim, size);
-        self.init_phase_one_add_arrays(dim, size);
     }
 
     fn init_phase_one_mult_arrays(&mut self, dim: usize, size: usize) {
