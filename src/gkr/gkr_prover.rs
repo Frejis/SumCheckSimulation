@@ -7,7 +7,6 @@ use crate::structures::circuit_structures::{EvaluatedGKRCircuit, GKRCircuit, Gat
 
 pub struct GKRProver<F: Field> {
     circuit: GKRCircuit<F>,
-    evaluated_circuit: EvaluatedGKRCircuit<F>,
     predicates: Vec<(AddPredicate<F>, MultPredicate<F>)>, // For each layer in the circuit.
     input: InputLayer<F>,
 }
@@ -27,7 +26,6 @@ impl<F: Field> GKRProver<F> {
     pub fn new(circuit: GKRCircuit<F>, input: InputLayer<F>) -> Self {
         Self {
             circuit,
-            evaluated_circuit: EvaluatedGKRCircuit::empty(),
             predicates: Vec::new(),
             input,
         }
@@ -47,7 +45,7 @@ impl<F: Field> GKRProver<F> {
             let s_i = log2_pow2(layer.gates.len());
             let next_s_i = log2_pow2(self.get_next_layer_address_space(i));
 
-            // For the predicate we need to create a index of (g, b, c)
+            // For the predicate we need to create an index of (g, b, c)
             // Where g is the gate index, b is the left child and c is the right child.
             // This is g is the first index then b and then c so it works when fixing variables.
 
@@ -77,7 +75,7 @@ impl<F: Field> GKRProver<F> {
     }
 
     fn get_next_layer_address_space(&self, i: usize) -> usize {
-        return if i == self.circuit.layers.len() - 1 {
+        if i == self.circuit.layers.len() - 1 {
             self.input.values.len()
         } else {
             self.circuit.layers[i + 1].gates.len()

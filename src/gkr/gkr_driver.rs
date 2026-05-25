@@ -1,6 +1,7 @@
 use std::time::{Duration, Instant};
 use ark_ff::Field;
 use ark_poly::{DenseMultilinearExtension, Polynomial};
+use ark_poly::univariate::SparsePolynomial;
 use crate::gkr::gkr_prover::GKRProver;
 use crate::gkr::gkr_round::GKRRound;
 use crate::gkr::gkr_verifier::GKRVerifier;
@@ -52,10 +53,11 @@ impl<F: Field> GKRDriver<F> {
         let total_rounds = 2 * s_i_plus_1;
         for _ in 0..total_rounds {
             let inst = Instant::now();
-            let g_j = prover.get_verifier_function();
+            let points = prover.get_verifier_function();
             prover_time += inst.elapsed();
 
             let inst = Instant::now();
+            let g_j = SparsePolynomial::from_coefficients_vec(points);
             let r_j = verifier.handle_round(&g_j);
             verifier_time += inst.elapsed();
 
