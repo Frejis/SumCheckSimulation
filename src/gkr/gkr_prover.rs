@@ -13,8 +13,7 @@ pub struct GKRProver<F: Field> {
 
 impl<F: Field> GKRProver<F> {
     pub fn evaluated_circuit(&mut self) -> EvaluatedGKRCircuit<F> {
-        self.evaluated_circuit = self.circuit.evaluate_circuit(&self.input);
-        self.evaluated_circuit.clone()
+        self.circuit.evaluate_circuit(&self.input)
     }
 
     pub fn predicates(&self) -> &Vec<(AddPredicate<F>, MultPredicate<F>)> {
