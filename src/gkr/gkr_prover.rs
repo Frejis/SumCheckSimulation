@@ -8,13 +8,20 @@ use crate::structures::circuit_structures::{EvaluatedGKRCircuit, GKRCircuit, Gat
 pub struct GKRProver<F: Field> {
     circuit: GKRCircuit<F>,
     predicates: Vec<(AddPredicate<F>, MultPredicate<F>)>, // For each layer in the circuit.
+    evaluated_circuit: EvaluatedGKRCircuit<F>,
     input: InputLayer<F>,
 }
 
 impl<F: Field> GKRProver<F> {
-    pub fn evaluated_circuit(&mut self) -> EvaluatedGKRCircuit<F> {
-        self.circuit.evaluate_circuit(&self.input)
+    pub fn evaluated_circuit(circuit: &GKRCircuit<F>, input: &InputLayer<F>) -> EvaluatedGKRCircuit<F> {
+        circuit.evaluate_circuit(input)
     }
+
+    pub fn circuit(&self) -> &GKRCircuit<F> {
+        &self.circuit
+    }
+
+    pub fn eval_circuit(&self) -> &EvaluatedGKRCircuit<F> {&self.evaluated_circuit}
 
     pub fn predicates(&self) -> &Vec<(AddPredicate<F>, MultPredicate<F>)> {
         &self.predicates
@@ -23,16 +30,17 @@ impl<F: Field> GKRProver<F> {
 
 impl<F: Field> GKRProver<F> {
     pub fn new(circuit: GKRCircuit<F>, input: InputLayer<F>) -> Self {
+        let evaluated_circuit = GKRProver::evaluated_circuit(&circuit, &input);
         Self {
             circuit,
             predicates: Vec::new(),
+            evaluated_circuit,
             input,
         }
     }
 
     /// This function initializes the predicates for the prover. This is a precomputation of all
-    /// predicates for the circuit. As such if the prover is reused with a different input it can
-    /// easily utilize the old predicate functions.
+    /// predicates for the circuit.
     pub fn compute_predicates(&mut self) {
         for i in 0..self.circuit.layers.len() {
             let mut add_terms = Vec::<(usize, F)>::new();
@@ -81,9 +89,12 @@ impl<F: Field> GKRProver<F> {
         }
     }
 
-    pub fn get_output_claim(&mut self) -> DenseMultilinearExtension<F> {
-        let evaluate_circuit = self.circuit.evaluate_circuit(&self.input);
-        let output_layer = &evaluate_circuit.layers[0];
-        output_layer.value_extension()
+    pub fn get_output_claim(&mut self) -> SparseMultilinearExtension<F> {
+        let mut evaluations = Vec::new();
+        for (idx, value) in self.evaluated_circuit.layers[0].values.iter().enumerate() {
+            evaluations.push((idx, *value))
+        }
+        let vars = log2_pow2(self.evaluated_circuit.layers[0].values.len());
+        SparseMultilinearExtension::from_evaluations(vars, &evaluations)
     }
 }

@@ -137,7 +137,7 @@ impl<F: Field> GKRDriver<F> {
     fn get_correct_value_extension(&mut self, i: usize) -> DenseMultilinearExtension<F> {
         if i < self.circuit.layers.len() - 1 {
             self.gkrprover
-                .evaluated_circuit()
+                .eval_circuit()
                 .layers[i + 1]
                 .value_extension()
         } else {
