@@ -94,6 +94,10 @@ impl AnalysisResult {
     pub fn print(&self) {
         println!("Prover spent: {:?}. Verifier spent: {:?}", self.prover_time, self.verifier_time);
     }
+
+    pub fn add_prover_time(&mut self, time: Duration) {
+        self.prover_time += time
+    }
 }
 
 impl Add for AnalysisResult {

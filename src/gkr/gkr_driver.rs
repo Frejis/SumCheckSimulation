@@ -6,7 +6,6 @@ use crate::gkr::gkr_prover::GKRProver;
 use crate::gkr::gkr_round::GKRRound;
 use crate::gkr::gkr_verifier::GKRVerifier;
 use crate::gkr::layer::{InputLayer, LayerConnection};
-use crate::provers::fast::FastProver;
 use crate::structures::circuit_structures::{GKRCircuit};
 use crate::structures::data_structures::{AnalysisResult, SumCheckProver, SumCheckVerifier};
 use crate::verifiers::standard_verifier::StandardVerifier;
@@ -169,18 +168,18 @@ impl<F: Field> GKRDriver<F> {
         let output_claim = self.gkrprover.get_output_claim();
         let (add_pred, mult_pred) = &self.gkrprover.predicates()[0];
         let gkr_round: GKRRound<F> = GKRRound::new(&mult_pred.pred, &add_pred.pred, &value_extension.clone(), &value_extension.clone());
+
+        let time = Instant::now();
         let mut prover = T::new(gkr_round.clone(), &*next_gate);
+        let elapsed = time.elapsed();
 
         assert_eq!(output_claim.evaluate(&next_gate), prover.compute_sum()); // This will be kept here as a sanity check.
 
-
-        let mut fast_prover = FastProver::new(gkr_round.clone(), &*next_gate);
-
-        assert_eq!(output_claim.evaluate(&next_gate), fast_prover.compute_sum());
-
-        let m0 = fast_prover.compute_sum();
+        let m0 = prover.compute_sum();
         let verifier = StandardVerifier::new(100, m0);
-        Self::run_layer(fast_prover, verifier, s_i_plus_1)
+        let mut res = Self::run_layer(prover, verifier, s_i_plus_1);
+        res.1.add_prover_time(elapsed);
+        res
     }
 }
 
