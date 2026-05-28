@@ -1,5 +1,5 @@
 use ark_ff::{Field, Zero};
-use ark_poly::{DenseMultilinearExtension, Polynomial};
+use ark_poly::{DenseMultilinearExtension, Polynomial, SparseMultilinearExtension};
 use ark_std::test_rng;
 use crate::gkr::layer::InputLayer;
 use crate::structures::circuit_structures::GKRCircuit;
@@ -12,12 +12,13 @@ use crate::structures::circuit_structures::GKRCircuit;
 pub struct GKRVerifier<F: Field> {
     circuit: GKRCircuit<F>,
     input: InputLayer<F>,
-    output_claim: DenseMultilinearExtension<F>,
+    output_claim: SparseMultilinearExtension<F>,
+    mi: F,
 }
 
 impl<F: Field> GKRVerifier<F> {
     pub fn new(circuit: GKRCircuit<F>, input: InputLayer<F>) -> Self {
-        Self { circuit, input, output_claim: DenseMultilinearExtension::zero() }
+        Self { circuit, input, output_claim: SparseMultilinearExtension::zero(), mi: F::zero() }
     }
 }
 
@@ -36,7 +37,7 @@ impl<F: Field> GKRVerifier<F> {
     
     /// As i am only writing this for testing it is important to note that this function uses a
     /// test_rng, and should as such not be referenced for future production code.
-    pub fn random_gate(&mut self, p0: &DenseMultilinearExtension<F>, gate_length: usize) -> Vec<F> {
+    pub fn random_gate(&mut self, p0: &SparseMultilinearExtension<F>, gate_length: usize) -> Vec<F> {
         self.output_claim = p0.clone();
         let mut res = Vec::new();
         for _ in 0..gate_length {
@@ -44,5 +45,13 @@ impl<F: Field> GKRVerifier<F> {
             res.push(rand_element);
         }
         res
+    }
+    
+    pub fn check_next_layer_claim_is_sum(&self, sum: F) {
+        assert_eq!(sum, self.mi)
+    }
+    
+    pub fn set_next_layer_claim(&mut self, mi: F) {
+        self.mi = mi
     }
 }
