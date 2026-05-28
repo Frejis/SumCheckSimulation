@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
 use ark_ff::Field;
-use ark_poly::{DenseMultilinearExtension, SparseMultilinearExtension};
+use ark_poly::{DenseMultilinearExtension, Polynomial, SparseMultilinearExtension};
 use ark_poly::univariate::SparsePolynomial;
 use crate::gkr::gkr_prover::GKRProver;
 use crate::gkr::gkr_round::GKRRound;
@@ -193,7 +193,7 @@ impl<F: Field> GKRDriver<F> {
         let gkr_round: GKRRound<F> = GKRRound::new(&mult_pred.pred, &add_pred.pred, &value_extension, &value_extension);
         let (prover, elapsed_prover) = Self::create_prover::<T>(&mut layer_connection.next_gate, gkr_round);
 
-        let verifier = StandardVerifier::new(2, layer_connection.claim_mi);
+        let verifier =  StandardVerifier::new(2, layer_connection.claim_mi);
         let mut res = self.run_layer(prover, verifier, s_i_plus_1);
         res.1.add_prover_time(elapsed_prover);
         res
@@ -208,16 +208,25 @@ impl<F: Field> GKRDriver<F> {
         let gkr_round: GKRRound<F> = GKRRound::new(&mult_pred.pred, &add_pred.pred, &value_extension.clone(), &value_extension.clone());
 
         // send claimed output to prover and get random gate for first iteration of sum-check.
-        let (mut next_gate, elapsed_verifier) = self.get_random_gate_send_claim_to_verifier(&output_claim);
+        let (mut next_gate, mut elapsed_verifier) = self.get_random_gate_send_claim_to_verifier(&output_claim);
 
         let (mut prover, elapsed_prover) = Self::create_prover::<T>(&mut next_gate, gkr_round);
 
-        let m0 = prover.compute_sum();
-        let verifier = StandardVerifier::new(2, m0);
+        let (verifier, time) = Self::create_initial_verifier_sumcheck(output_claim, &mut next_gate);
+        elapsed_verifier += time;
         let mut res = self.run_layer(prover, verifier, s_i_plus_1);
         res.1.add_prover_time(elapsed_prover);
         res.1.add_verifier_time(elapsed_verifier);
         res
+    }
+
+    /// This is only for the initial sum-check because it relies and sets the claim of the verifier
+    /// based on the output claim sent by the prover.
+    fn create_initial_verifier_sumcheck(output_claim: SparseMultilinearExtension<F>, next_gate: &mut Vec<F>) -> (StandardVerifier<F>, Duration) {
+        let time = Instant::now();
+        let verifier = StandardVerifier::new(2, output_claim.evaluate(&next_gate));
+        let time = time.elapsed();
+        (verifier, time)
     }
 
     fn get_random_gate_send_claim_to_verifier(&mut self, output_claim: &SparseMultilinearExtension<F>) -> (Vec<F>, Duration) {
