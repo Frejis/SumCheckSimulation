@@ -69,7 +69,6 @@ impl<F: Field> SumCheckVerifier<F> for StandardVerifier<F> {
         // Let's sample uniformly random field elements:
         let rand_element = F::rand(&mut self.rng);
         self.random_points_chosen.push(rand_element);
-        println!("Chose a random element in Sum-check.");
         rand_element
     }
 
