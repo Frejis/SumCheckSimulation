@@ -62,7 +62,6 @@ impl<F: Field> FastProver<F> {
         let dim = self.gkr_round.vi().num_vars;
         let size = 1 << dim;
         self.init_phase_one_mult_arrays(dim, size);
-        self.init_phase_one_add_arrays(dim, size);
     }
 
     fn initialize_phase_two(&mut self) {
@@ -73,8 +72,11 @@ impl<F: Field> FastProver<F> {
         let fr = self.gkr_round.vi.evaluate(&self.fixed_variables);
         for i in 0..size {
             let field_index: Vec<F> = index_to_field_element(i, self.gkr_round.vj.num_vars);
-            self.mult_p[i] = fixed_mult.evaluate(&field_index);
+            //self.mult_p[i] = fixed_mult.evaluate(&field_index);
             self.mult_q[i] = fr * self.gkr_round.vj.evaluate(&field_index);
+        }
+        for (j, value) in fixed_mult.evaluations {
+            self.mult_p[j] += value;
         }
     }
 
@@ -87,24 +89,16 @@ impl<F: Field> FastProver<F> {
     fn init_phase_one_mult_arrays(&mut self, dim: usize, size: usize) {
         self.mult_p = vec![F::zero(); size];
         self.mult_q = vec![F::zero(); size];
+        self.add_f2 = vec![F::zero(); size];
+        self.add_pred = vec![F::zero(); size];
+        self.add_pred_f3 = vec![F::zero(); size];
+
         let mult_predicate_nonzero = self.fixed_mult.evaluations.iter();
         for (xy, value) in mult_predicate_nonzero {
             let x = xy & ((1 << dim) - 1);
             let y = xy >> dim;
             self.mult_p[x] += *value * self.gkr_round.vj[y];
         }
-        for i in 0..size {
-            let i_index = index_to_field_element(i, dim);
-            let vi_val = self.gkr_round.vi().evaluate(&i_index);
-            self.mult_q[i] = vi_val;
-        }
-    }
-
-    fn init_phase_one_add_arrays(&mut self, dim: usize, size: usize) {
-        self.add_pred = vec![F::zero(); size];
-        self.add_f2 = vec![F::zero(); size];
-        self.add_pred_f3 = vec![F::zero(); size];
-
         let add_predicate_nonzero = self.fixed_add.evaluations.iter();
         for (xy, value) in add_predicate_nonzero {
             let x = xy & ((1 << dim) - 1);
@@ -112,10 +106,10 @@ impl<F: Field> FastProver<F> {
             self.add_pred_f3[x] += *value * self.gkr_round.vj()[y];
             self.add_pred[x] += *value;
         }
-
         for i in 0..size {
             let i_index = index_to_field_element(i, dim);
             let vi_val = self.gkr_round.vi().evaluate(&i_index);
+            self.mult_q[i] = vi_val;
             self.add_f2[i] = vi_val;
         }
     }

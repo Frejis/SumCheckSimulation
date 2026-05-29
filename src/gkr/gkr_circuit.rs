@@ -28,6 +28,33 @@ impl<F: Field> GKRCircuit<F> {
         }
         GKRCircuit::new(circuit_layer)
     }
+
+    pub fn figure_circuit() -> Self {
+        let layers = 2;
+        let pred = GateType::Mul; // Only mult gates in the figure.
+
+        let mut output_layer: Vec<Gate> = Vec::new();
+        let g0l0 = Gate::new(0, 1, GateType::Mul);
+        let g1l0 = Gate::new(2,3, GateType::Mul);
+        output_layer.push(g0l0);
+        output_layer.push(g1l0);
+
+        let mut middle_layer: Vec<Gate> = Vec::new();
+        let g00l1 = Gate::new(0,0, GateType::Mul);
+        let g01l1 = Gate::new(1,1, GateType::Mul);
+        let g10l1 = Gate::new(1,2, GateType::Mul);
+        let g11l1 = Gate::new(3,3, GateType::Mul);
+
+        middle_layer.push(g00l1);
+        middle_layer.push(g01l1);
+        middle_layer.push(g10l1);
+        middle_layer.push(g11l1);
+
+        let mut res = Vec::new();
+        res.push(Layer::new(output_layer));
+        res.push(Layer::new(middle_layer));
+        GKRCircuit::new(res)
+    }
 }
 
 fn random_number<R: Rng>(max: usize, rng: &mut R) -> usize {

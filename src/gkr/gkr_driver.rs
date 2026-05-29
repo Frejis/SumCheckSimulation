@@ -7,7 +7,7 @@ use crate::gkr::gkr_round::GKRRound;
 use crate::gkr::gkr_verifier::GKRVerifier;
 use crate::gkr::layer::{InputLayer, LayerConnection, LayerReductionMessage};
 use crate::structures::circuit_structures::{GKRCircuit};
-use crate::structures::data_structures::{AnalysisResult, SumCheckProver, SumCheckVerifier};
+use crate::structures::data_structures::{AnalysisResult, SumCheckProver, SumCheckVerifier, Track};
 use crate::verifiers::standard_verifier::StandardVerifier;
 
 /// This file is responsible for simulating a GKR Proof.
@@ -46,7 +46,7 @@ impl<F: Field> GKRDriver<F> {
         mut verifier: StandardVerifier<F>,
         s_i_plus_1: usize,
         layer: usize,
-    ) -> (LayerConnection<F>, AnalysisResult)
+    ) -> (LayerConnection<F>, Track)
     {
         let mut prover_time = Duration::new(0, 0);
         let mut verifier_time = Duration::new(0,0);
@@ -71,13 +71,14 @@ impl<F: Field> GKRDriver<F> {
 
         self.verifier.set_next_layer_claim(claim);
 
-        (LayerConnection::new(next_layer_gate, claim), AnalysisResult::new(verifier_time, prover_time))
+        (LayerConnection::new(next_layer_gate, claim), Track::new_times(prover_time, verifier_time))
     }
 
     fn track_get_verif_func<T: SumCheckProver<F>>(prover: &mut T, prover_time: &mut Duration) -> Vec<(usize, F)> {
         let inst = Instant::now();
         let points = prover.get_verifier_function();
-        *prover_time += inst.elapsed();
+        let elapsed = inst.elapsed();
+        *prover_time += elapsed;
         points
     }
 
@@ -99,7 +100,9 @@ impl<F: Field> GKRDriver<F> {
         let inst = Instant::now();
         prover.fix_variable(r_j);
         let new_claim = prover.compute_sum();
-        *prover_time += inst.elapsed();
+        let elapsed = inst.elapsed();
+        *prover_time += elapsed;
+        println!("Time taken to compute sum: {:?}", elapsed);
         new_claim
     }
 
@@ -117,7 +120,9 @@ impl<F: Field> GKRDriver<F> {
     fn track_creating_layer_reduc_msg<T: SumCheckProver<F>>(prover: &mut T, s_i_plus_1: usize, prover_time: &mut Duration) -> LayerReductionMessage<F> {
         let inst = Instant::now();
         let msg = prover.layer_reduction_message(s_i_plus_1);
-        *prover_time += inst.elapsed();
+        let elapsed = inst.elapsed();
+        *prover_time += elapsed;
+        println!("Time taken to create layer reduction msg: {:?}", elapsed);
         msg
     }
 
@@ -125,21 +130,24 @@ impl<F: Field> GKRDriver<F> {
         &mut self,
     ) -> AnalysisResult
     {
-        let mut an_res = AnalysisResult::new(Duration::new(0,0), Duration::new(0,0));
+        let mut an_res = AnalysisResult::new();
         let mut layer_connection = LayerConnection::new(vec![F::zero()], F::zero());
         // This is for all rounds except the last round.
         for i in 0..self.circuit.layers.len() {
             let (layer_conn, analysis) = self.handle_sum_check_for_layer::<T>(layer_connection, i);
             layer_connection = layer_conn;
-            an_res = an_res + analysis;
+            an_res.add_time_per_layer(analysis);
         }
 
         // This function panics == Verifier rejects.
         println!("Checking Final claim");
 
+        let mut track = Track::new();
         let inst = Instant::now();
         self.verifier.verify_final_claimed_value_point(layer_connection.next_gate, layer_connection.claim_mi);
-        an_res.add_verifier_time(inst.elapsed());
+        let elapsed = inst.elapsed();
+        track.add_verifier_time(elapsed);
+        an_res.add_time_per_layer(track);
 
         an_res
     }
@@ -147,7 +155,7 @@ impl<F: Field> GKRDriver<F> {
     fn handle_sum_check_for_layer<T: SumCheckProver<F>>(
         &mut self, mut layer_connection: LayerConnection<F>,
         i: usize
-    ) -> (LayerConnection<F>, AnalysisResult) {
+    ) -> (LayerConnection<F>, Track) {
         let s_i_plus_1 = self.get_correct_next_layer_size(i + 1);
 
         let value_extension = self.get_correct_value_extension(i + 1);
@@ -195,9 +203,11 @@ impl<F: Field> GKRDriver<F> {
                                   s_i_plus_1: usize,
                                   value_extension: &DenseMultilinearExtension<F>,
                                   layer: usize,
-    ) -> (LayerConnection<F>, AnalysisResult) {
+    ) -> (LayerConnection<F>, Track) {
         let (add_pred, mult_pred) = &self.gkrprover.predicates()[layer];
         let gkr_round: GKRRound<F> = GKRRound::new(&mult_pred.pred, &add_pred.pred, &value_extension, &value_extension);
+
+
         let (prover, elapsed_prover) = Self::create_prover::<T>(&mut layer_connection.next_gate, gkr_round);
 
         let verifier =  StandardVerifier::new(2, layer_connection.claim_mi);
@@ -209,7 +219,7 @@ impl<F: Field> GKRDriver<F> {
     fn handle_first_round<T: SumCheckProver<F>>(&mut self,
                           s_i_plus_1: usize,
                           value_extension: &DenseMultilinearExtension<F>,
-    ) -> (LayerConnection<F>, AnalysisResult)  {
+    ) -> (LayerConnection<F>, Track)  {
         let output_claim = self.gkrprover.get_output_claim();
         let (add_pred, mult_pred) = &self.gkrprover.predicates()[0];
         let gkr_round: GKRRound<F> = GKRRound::new(&mult_pred.pred, &add_pred.pred, &value_extension.clone(), &value_extension.clone());

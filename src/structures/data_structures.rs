@@ -2,7 +2,6 @@
 This file will contain structures relevant to setting up the proof system.
 */
 use std::iter;
-use std::ops::Add;
 use std::time::Duration;
 use ark_ff::{Field, Zero};
 use ark_poly::{univariate, DenseUVPolynomial, MultilinearExtension};
@@ -78,36 +77,84 @@ pub trait SumCheckVerifier<F: Field> {
 }
 
 pub struct AnalysisResult {
-    verifier_time: Duration,
-    prover_time: Duration,
+    time_per_layer: Vec<Track>
 }
 
-impl AnalysisResult {
-    pub fn new(verifier_time: Duration, prover_time: Duration) -> Self {
-        Self { verifier_time, prover_time }
+pub struct Track {
+    prover: Duration,
+    verifier: Duration,
+}
+
+impl Track {
+    pub fn new() -> Self {
+        Self {
+            prover: Duration::new(0,0),
+            verifier: Duration::new(0,0),
+        }
+    }
+
+    pub fn new_times(prover: Duration, verifier: Duration) -> Self {
+        Self {
+            prover,
+            verifier,
+        }
     }
 
     pub fn add_verifier_time(&mut self, time: Duration) {
-        self.verifier_time += time;
-    }
-
-    pub fn print(&self) {
-        println!("Prover spent: {:?}. Verifier spent: {:?}", self.prover_time, self.verifier_time);
+        self.verifier += time;
     }
 
     pub fn add_prover_time(&mut self, time: Duration) {
-        self.prover_time += time
+        self.prover += time;
+    }
+
+    pub fn prover(&self) -> Duration {
+        self.prover
+    }
+
+    pub fn verifier(&self) -> Duration {
+        self.verifier
     }
 }
 
-impl Add for AnalysisResult {
-    type Output = Self;
+impl AnalysisResult {
+    pub fn new() -> Self {
+        Self { time_per_layer: Vec::new() }
+    }
 
-    fn add(self, rhs: Self) -> Self::Output {
-        AnalysisResult::new(
-            self.verifier_time + rhs.verifier_time,
-            self.prover_time + rhs.prover_time,
-        )
+    pub fn add_verifier_time(&mut self, time: Duration, layer: usize) {
+        self.time_per_layer[layer].add_verifier_time(time);
+    }
+
+    pub fn add_time_per_layer(&mut self, prv_time: Track) {
+        self.time_per_layer.push(prv_time)
+    }
+
+    pub fn print_total(&self) {
+        let mut prover = Duration::new(0,0);
+        let mut verifier = Duration::new(0,0);
+        for i in self.time_per_layer.iter() {
+            prover += i.prover;
+            verifier += i.verifier;
+        }
+        println!("Prover spent: {:?}. Verifier spent: {:?}", prover, verifier);
+    }
+
+    pub fn print_each_layer(&self) {
+        for (layer, track) in self.time_per_layer.iter().enumerate() {
+            println!("Layer {layer}. Prover spent: {:?}. Verifier spent: {:?}.",
+                track.prover,
+                track.verifier
+            )
+        }
+    }
+
+    pub fn get_time_for_layer(&self, layer: usize) -> &Track {
+        &self.time_per_layer[layer]
+    }
+
+    pub fn add_prover_time(&mut self, time: Duration, layer: usize) {
+        self.time_per_layer[layer].add_prover_time(time);
     }
 }
 
