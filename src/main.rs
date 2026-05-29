@@ -1,6 +1,7 @@
 use ark_bls12_381::{Fr, FrConfig};
 use ark_ff::{Field, Fp, MontBackend};
 use ark_std::test_rng;
+use crate::gkr::gkr_circuit::compute_predicates;
 use crate::gkr::gkr_driver::GKRDriver;
 use crate::gkr::gkr_prover::GKRProver;
 use crate::gkr::gkr_verifier::GKRVerifier;
@@ -33,9 +34,11 @@ fn simulate_gkr_naive<F: Field>(random_circuit: GKRCircuit<Fr>, input_layer: Inp
     -> AnalysisResult
 where NaiveProver<F>: SumCheckProver<Fp<MontBackend<FrConfig, 4>, 4>> {
     let mut gkr_prover = GKRProver::new(random_circuit.clone(), input_layer.clone());
-    gkr_prover.compute_predicates();
-    let gkr_verifier = GKRVerifier::new(random_circuit.clone(), input_layer.clone());
-    let mut gkrdriver: GKRDriver<Fr> = GKRDriver::new(gkr_prover, gkr_verifier, random_circuit, input_layer);
+    let predicate = compute_predicates(gkr_prover.circuit(), gkr_prover.input());
+    gkr_prover.set_predicates(predicate.clone());
+    let mut gkr_verifier = GKRVerifier::new(random_circuit.clone(), input_layer.clone());
+    gkr_verifier.set_predicate(predicate);
+    let mut gkrdriver: GKRDriver<Fr> = GKRDriver::new(&gkr_prover, &gkr_verifier, random_circuit, input_layer);
     gkrdriver.run_circuit::<NaiveProver<F>>()
 }
 
@@ -43,9 +46,13 @@ fn simulate_gkr_fast<F: Field>(random_circuit: GKRCircuit<Fr>, input_layer: Inpu
     -> AnalysisResult
 where FastProver<F>: SumCheckProver<Fp<MontBackend<FrConfig, 4>, 4>> {
     let mut gkr_prover = GKRProver::new(random_circuit.clone(), input_layer.clone());
-    gkr_prover.compute_predicates();
-    let gkr_verifier = GKRVerifier::new(random_circuit.clone(), input_layer.clone());
-    let mut gkrdriver: GKRDriver<Fr> = GKRDriver::new(gkr_prover, gkr_verifier, random_circuit, input_layer);
+    let mut gkr_verifier = GKRVerifier::new(random_circuit.clone(), input_layer.clone());
+    let predicate = compute_predicates(gkr_prover.circuit(), gkr_prover.input());
+    gkr_prover.set_predicates(predicate.clone());
+    gkr_verifier.set_predicate(predicate);
+    
+    
+    let mut gkrdriver: GKRDriver<Fr> = GKRDriver::new(&gkr_prover, &gkr_verifier, random_circuit, input_layer);
     gkrdriver.run_circuit::<FastProver<F>>()
 }
 

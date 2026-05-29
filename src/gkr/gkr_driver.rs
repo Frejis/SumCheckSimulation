@@ -23,8 +23,8 @@ pub struct GKRDriver<F: Field> {
 }
 
 impl<F: Field> GKRDriver<F> {
-    pub fn new(gkrprover: GKRProver<F>, verifier: GKRVerifier<F>, circuit: GKRCircuit<F>, input_layer: InputLayer<F>) -> Self {
-        Self { gkrprover, verifier, circuit, input_layer }
+    pub fn new(gkrprover: &GKRProver<F>, verifier: &GKRVerifier<F>, circuit: GKRCircuit<F>, input_layer: InputLayer<F>) -> Self {
+        Self { gkrprover: gkrprover.clone(), verifier: verifier.clone(), circuit, input_layer }
     }
 }
 
@@ -45,14 +45,16 @@ impl<F: Field> GKRDriver<F> {
         mut prover: T,
         mut verifier: StandardVerifier<F>,
         s_i_plus_1: usize,
+        layer: usize,
     ) -> (LayerConnection<F>, AnalysisResult)
     {
         let mut prover_time = Duration::new(0, 0);
         let mut verifier_time = Duration::new(0,0);
-
+        let mut points;
         let total_rounds = 2 * s_i_plus_1;
+        println!("Total rounds {total_rounds}");
         for _ in 0..total_rounds {
-            let points = Self::track_get_verif_func(&mut prover, &mut prover_time);
+            points = Self::track_get_verif_func(&mut prover, &mut prover_time);
 
             // r_j is the random element returned by verf. in round j of sum-check.
             let r_j = Self::handle_verifier_function_from_prover(&mut verifier, &mut verifier_time, points);
@@ -64,7 +66,8 @@ impl<F: Field> GKRDriver<F> {
             Self::track_setting_new_claim(&mut verifier, &mut verifier_time, new_claim);
         }
         let msg = Self::track_creating_layer_reduc_msg(&mut prover, s_i_plus_1, &mut prover_time);
-        let (next_layer_gate, claim) = Self::track_handle_layer_reduc_msg(&mut verifier, s_i_plus_1, &mut verifier_time, msg);
+
+        let (next_layer_gate, claim) = self.track_handle_layer_reduc_msg(&mut verifier, s_i_plus_1, &mut verifier_time, msg, layer);
 
         self.verifier.set_next_layer_claim(claim);
 
@@ -100,9 +103,13 @@ impl<F: Field> GKRDriver<F> {
         new_claim
     }
 
-    fn track_handle_layer_reduc_msg(verifier: &mut StandardVerifier<F>, s_i_plus_1: usize, verifier_time: &mut Duration, msg: LayerReductionMessage<F>) -> (Vec<F>, F) {
+    fn track_handle_layer_reduc_msg(&mut self, verifier: &mut StandardVerifier<F>, s_i_plus_1: usize, verifier_time: &mut Duration, msg: LayerReductionMessage<F>, layer: usize) -> (Vec<F>, F) {
         let inst = Instant::now();
-        let (next_layer_gate, claim) = verifier.handle_layer_reduction_message(msg, s_i_plus_1);
+
+        self.verifier.confirm_last_sum_check_msg(&msg, verifier, layer);
+
+        let (next_layer_gate, claim) = verifier.handle_layer_reduction_message(&msg, s_i_plus_1);
+        self.verifier.set_gate(next_layer_gate.as_slice(), layer + 1);
         *verifier_time += inst.elapsed();
         (next_layer_gate, claim)
     }
@@ -194,7 +201,7 @@ impl<F: Field> GKRDriver<F> {
         let (prover, elapsed_prover) = Self::create_prover::<T>(&mut layer_connection.next_gate, gkr_round);
 
         let verifier =  StandardVerifier::new(2, layer_connection.claim_mi);
-        let mut res = self.run_layer(prover, verifier, s_i_plus_1);
+        let mut res = self.run_layer(prover, verifier, s_i_plus_1, layer);
         res.1.add_prover_time(elapsed_prover);
         res
     }
@@ -208,13 +215,13 @@ impl<F: Field> GKRDriver<F> {
         let gkr_round: GKRRound<F> = GKRRound::new(&mult_pred.pred, &add_pred.pred, &value_extension.clone(), &value_extension.clone());
 
         // send claimed output to prover and get random gate for first iteration of sum-check.
-        let (mut next_gate, mut elapsed_verifier) = self.get_random_gate_send_claim_to_verifier(&output_claim);
+        let (mut next_gate, mut elapsed_verifier) = self.get_random_gate_send_claim_to_verifier(&output_claim, 0);
 
-        let (mut prover, elapsed_prover) = Self::create_prover::<T>(&mut next_gate, gkr_round);
+        let (prover, elapsed_prover) = Self::create_prover::<T>(&mut next_gate, gkr_round);
 
         let (verifier, time) = Self::create_initial_verifier_sumcheck(output_claim, &mut next_gate);
         elapsed_verifier += time;
-        let mut res = self.run_layer(prover, verifier, s_i_plus_1);
+        let mut res = self.run_layer(prover, verifier, s_i_plus_1, 0);
         res.1.add_prover_time(elapsed_prover);
         res.1.add_verifier_time(elapsed_verifier);
         res
@@ -229,10 +236,11 @@ impl<F: Field> GKRDriver<F> {
         (verifier, time)
     }
 
-    fn get_random_gate_send_claim_to_verifier(&mut self, output_claim: &SparseMultilinearExtension<F>) -> (Vec<F>, Duration) {
+    fn get_random_gate_send_claim_to_verifier(&mut self, output_claim: &SparseMultilinearExtension<F>, layer: usize) -> (Vec<F>, Duration) {
         let instant = Instant::now();
         let initial_layer_size = self.get_correct_next_layer_size(0);
         let next_gate = self.verifier.random_gate(&output_claim, initial_layer_size);
+        self.verifier.set_gate(next_gate.as_slice(), layer);
         let elapsed_verifier = instant.elapsed();
         (next_gate, elapsed_verifier)
     }
@@ -249,8 +257,10 @@ impl<F: Field> GKRDriver<F> {
 #[cfg(test)]
 mod tests {
     use ark_bls12_381::Fr;
+    use ark_ff::Field;
     use ark_poly::Polynomial;
     use ark_std::test_rng;
+    use crate::gkr::gkr_circuit::compute_predicates;
     use crate::gkr::gkr_driver::GKRDriver;
     use crate::gkr::gkr_prover::GKRProver;
     use crate::gkr::gkr_round::GKRRound;
@@ -259,31 +269,39 @@ mod tests {
     use crate::provers::fast::FastProver;
     use crate::structures::circuit_structures::GKRCircuit;
     use crate::structures::data_structures::SumCheckProver;
-    use crate::util::random_gate;
     use crate::verifiers::standard_verifier::StandardVerifier;
+
+    impl<F: Field> GKRDriver<F> {
+        pub(crate) fn set_verifier(&mut self, p0: GKRVerifier<F>) {
+            self.verifier = p0;
+        }
+    }
 
     #[test]
     fn simulate_full_gkr_round_with_naive_prover() {
-        let gkr_round: GKRRound<Fr> = GKRRound::new_rand(7);
-        let k = gkr_round.vi().num_vars;
-        let fixed_gate = random_gate::<Fr>(gkr_round.gate_labes());
-
-        let mut prover = FastProver::new(gkr_round.clone(), &fixed_gate);
-
-        // IMPORTANT: verifier initial claim must match prover's current sum.
-        let initial_claim = prover.compute_sum();
-        let verifier = StandardVerifier::new(3, initial_claim);
-
         let layers = &[2, 4, 8, 32, 64, 128, 256, 512, 2048, 1024];
         let random_circuit: GKRCircuit<Fr> = GKRCircuit::random(layers, &mut test_rng());
         let input_layer: InputLayer<Fr> = InputLayer::random(layers.last().unwrap());
 
         let mut gkr_prover = GKRProver::new(random_circuit.clone(), input_layer.clone());
-        gkr_prover.compute_predicates();
-        let gkr_verifier = GKRVerifier::new(random_circuit.clone(), input_layer.clone());
-        let mut gkrdriver: GKRDriver<Fr> = GKRDriver::new(gkr_prover, gkr_verifier, random_circuit, input_layer);
 
-        let (layer, _) = gkrdriver.run_layer(prover, verifier, k);
+        let pred = compute_predicates(gkr_prover.circuit(), gkr_prover.input());
+        gkr_prover.set_predicates(pred);
+        let mut gkr_verifier = GKRVerifier::new(random_circuit.clone(), input_layer.clone());
+        let pred = compute_predicates(gkr_prover.circuit(), gkr_prover.input());
+        gkr_verifier.set_predicate(pred);
+        let mut gkrdriver: GKRDriver<Fr> = GKRDriver::new(&gkr_prover, &gkr_verifier, random_circuit, input_layer);
+
+        let gate = gkr_verifier.random_gate(&gkr_prover.get_output_claim(), 1);
+        gkr_verifier.set_gate(&*gate, 0);
+        gkrdriver.set_verifier(gkr_verifier);
+        let pred = &compute_predicates(gkr_prover.circuit(), gkr_prover.input())[0];
+        let vle = gkr_prover.eval_circuit().layers[1].value_extension();
+        let gkr_round = GKRRound::new(&pred.1.pred, &pred.0.pred, &vle, &vle);
+        let mut prover = FastProver::new(gkr_round.clone(), &gate);
+        let verifier = StandardVerifier::new(2, prover.compute_sum());
+
+        let (layer, _) = gkrdriver.run_layer(prover, verifier, vle.num_vars, 0);
 
         // Folded claim must match direct W_{i+1}(r_next) evaluation.
         let expected = gkr_round.vi().evaluate(&layer.next_gate);

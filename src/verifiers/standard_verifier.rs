@@ -15,8 +15,14 @@ pub struct StandardVerifier<F: Field> {
 }
 
 impl<F: Field> StandardVerifier<F> {
+    pub(crate) fn claimed_value(&self) -> &F {
+        &self.claimed_value
+    }
+}
+
+impl<F: Field> StandardVerifier<F> {
     /// Function should only be used for testing as it relies on test_reng().
-    pub fn handle_layer_reduction_message(&self, msg: LayerReductionMessage<F>, s_i_plus_1: usize) -> (Vec<F>, F) {
+    pub fn handle_layer_reduction_message(&self, msg: &LayerReductionMessage<F>, s_i_plus_1: usize) -> (Vec<F>, F) {
         let q0 = msg.qt().evaluate(&F::zero());
         let q1 = msg.qt().evaluate(&F::one());
         assert_eq!(q0, msg.z1(), "q(0) != z1");
@@ -63,6 +69,7 @@ impl<F: Field> SumCheckVerifier<F> for StandardVerifier<F> {
         // Let's sample uniformly random field elements:
         let rand_element = F::rand(&mut self.rng);
         self.random_points_chosen.push(rand_element);
+        println!("Chose a random element in Sum-check.");
         rand_element
     }
 
