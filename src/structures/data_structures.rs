@@ -4,10 +4,11 @@ This file will contain structures relevant to setting up the proof system.
 use std::iter;
 use std::time::Duration;
 use ark_ff::{Field, Zero};
-use ark_poly::{univariate, DenseUVPolynomial, MultilinearExtension};
+use ark_poly::{univariate, DenseMultilinearExtension, DenseUVPolynomial, MultilinearExtension, Polynomial, SparseMultilinearExtension};
 use ark_poly::univariate::SparsePolynomial;
 use crate::gkr::gkr_round::GKRRound;
 use crate::gkr::layer::LayerReductionMessage;
+use crate::gkr::predicates::{AddPredicate, MultPredicate};
 
 pub trait SumCheckProver<F: Field> {
     // Computes the sum so we can have an alleged claim of the functions.
@@ -73,7 +74,12 @@ pub trait SumCheckVerifier<F: Field> {
 
     fn set_claim(&mut self, claim: F);
 
-    fn final_check(&self);
+
+    /// This should only be used during Sum-check simulation as the final check is otherwise
+    /// handled by checking that the layer is correct. As such this is given the MLE as input.
+    fn final_check(&self, gate: &[F], add_pred: &SparseMultilinearExtension<F>, mult_pred: &SparseMultilinearExtension<F>, mle: DenseMultilinearExtension<F>, vrf_func: SparsePolynomial<F>);
+    
+    fn new(max_degree: usize, claim: F) -> Self;
 }
 
 pub struct AnalysisResult {

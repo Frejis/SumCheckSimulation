@@ -94,7 +94,7 @@ impl<F: Field> GKRRound<F> {
             add_predicate: add_pred,
             vi,
             vj,
-            gate_labes: 7,
+            gate_labes: dim,
         }
     }
 

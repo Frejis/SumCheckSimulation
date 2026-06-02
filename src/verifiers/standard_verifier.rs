@@ -1,9 +1,11 @@
+use std::ops::Mul;
 use ark_ff::Field;
-use ark_poly::{Polynomial, SparseMultilinearExtension};
+use ark_poly::{DenseMultilinearExtension, MultilinearExtension, Polynomial, SparseMultilinearExtension};
 use ark_poly::univariate::SparsePolynomial;
 use ark_std::rand::{SeedableRng, rngs::StdRng};
 use ark_std::test_rng;
 use crate::gkr::layer::LayerReductionMessage;
+use crate::gkr::predicates::{AddPredicate, MultPredicate};
 use crate::structures::data_structures::SumCheckVerifier;
 use crate::util::line_point;
 
@@ -47,17 +49,6 @@ impl<F: Field> StandardVerifier<F> {
     }
 }
 
-impl<F: Field> StandardVerifier<F> {
-    pub fn new(max_degree: usize, claimed_value: F) -> Self {
-        StandardVerifier {
-            random_points_chosen: Vec::new(),
-            claimed_value,
-            max_degree,
-            rng: StdRng::seed_from_u64(42),
-        }
-    }
-}
-
 impl<F: Field> SumCheckVerifier<F> for StandardVerifier<F> {
     fn verify_degree(&self, fx: &SparsePolynomial<F>) -> bool {
         fx.degree() < self.max_degree
@@ -91,7 +82,25 @@ impl<F: Field> SumCheckVerifier<F> for StandardVerifier<F> {
         self.claimed_value = claim;
     }
 
-    fn final_check(&self) {
-        todo!()
+    fn final_check(&self, gate: &[F], add_pred: &SparseMultilinearExtension<F>, mult_pred: &SparseMultilinearExtension<F>, mle: DenseMultilinearExtension<F>, vrf_func: SparsePolynomial<F>) {
+        println!("numvars: {:?}, input: {:?}", mle.num_vars, self.random_points_chosen.len());
+        let add_fixed = add_pred.fix_variables(gate).evaluate(&self.random_points_chosen);
+        let mult_fixed = mult_pred.fix_variables(gate).evaluate(&self.random_points_chosen);
+        let mle_left = mle.evaluate(&self.random_points_chosen[0..self.random_points_chosen.len()/2].to_vec());
+        let vj = &self.random_points_chosen[self.random_points_chosen.len()/2..self.random_points_chosen.len()];
+        let mle_right = mle.evaluate(&vj.to_vec());
+        let add_term = add_fixed * mle_left + add_fixed + mle_right;
+        let mult_term = mult_fixed * (mle_left * mle_right);
+        let checked_claim: F = vrf_func.iter().rfold(F::zero(), |acc, (_, elem)| {*elem + acc});
+        assert_eq!(checked_claim, add_term + mult_term)
+    }
+
+    fn new(max_degree: usize, claimed_value: F) -> Self {
+        StandardVerifier {
+            random_points_chosen: Vec::new(),
+            claimed_value,
+            max_degree,
+            rng: StdRng::seed_from_u64(42),
+        }
     }
 }

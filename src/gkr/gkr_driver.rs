@@ -8,6 +8,7 @@ use crate::gkr::gkr_verifier::GKRVerifier;
 use crate::gkr::layer::{InputLayer, LayerConnection, LayerReductionMessage};
 use crate::structures::circuit_structures::{GKRCircuit};
 use crate::structures::data_structures::{AnalysisResult, SumCheckProver, SumCheckVerifier, Track};
+use crate::util::create_prover;
 use crate::verifiers::standard_verifier::StandardVerifier;
 
 /// This file is responsible for simulating a GKR Proof.
@@ -208,7 +209,7 @@ impl<F: Field> GKRDriver<F> {
         let gkr_round: GKRRound<F> = GKRRound::new(&mult_pred.pred, &add_pred.pred, &value_extension, &value_extension);
 
 
-        let (prover, elapsed_prover) = Self::create_prover::<T>(&mut layer_connection.next_gate, gkr_round);
+        let (prover, elapsed_prover) = create_prover::<T, F>(&mut layer_connection.next_gate, gkr_round);
 
         let verifier =  StandardVerifier::new(2, layer_connection.claim_mi);
         let mut res = self.run_layer(prover, verifier, s_i_plus_1, layer);
@@ -227,7 +228,7 @@ impl<F: Field> GKRDriver<F> {
         // send claimed output to prover and get random gate for first iteration of sum-check.
         let (mut next_gate, mut elapsed_verifier) = self.get_random_gate_send_claim_to_verifier(&output_claim, 0);
 
-        let (prover, elapsed_prover) = Self::create_prover::<T>(&mut next_gate, gkr_round);
+        let (prover, elapsed_prover) = create_prover::<T, F>(&mut next_gate, gkr_round);
 
         let (verifier, time) = Self::create_initial_verifier_sumcheck(output_claim, &mut next_gate);
         elapsed_verifier += time;
@@ -255,13 +256,6 @@ impl<F: Field> GKRDriver<F> {
         (next_gate, elapsed_verifier)
     }
 
-    /// Creates a prover and tracks the time it took to be created.
-    fn create_prover<T: SumCheckProver<F>>(next_gate: &mut Vec<F>, gkr_round: GKRRound<F>) -> (T, Duration) {
-        let time = Instant::now();
-        let prover = T::new(gkr_round.clone(), &*next_gate);
-        let elapsed = time.elapsed();
-        (prover, elapsed)
-    }
 }
 
 #[cfg(test)]
@@ -278,7 +272,7 @@ mod tests {
     use crate::gkr::layer::InputLayer;
     use crate::provers::fast::FastProver;
     use crate::structures::circuit_structures::GKRCircuit;
-    use crate::structures::data_structures::SumCheckProver;
+    use crate::structures::data_structures::{SumCheckProver, SumCheckVerifier};
     use crate::verifiers::standard_verifier::StandardVerifier;
 
     impl<F: Field> GKRDriver<F> {

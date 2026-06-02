@@ -1,8 +1,11 @@
 use std::iter;
+use std::time::{Duration, Instant};
 use ark_ff::Field;
 use ark_poly::{univariate, DenseMultilinearExtension, DenseUVPolynomial, MultilinearExtension, SparseMultilinearExtension};
 use ark_poly::univariate::{DensePolynomial, SparsePolynomial};
 use ark_std::test_rng;
+use crate::gkr::gkr_round::GKRRound;
+use crate::structures::data_structures::SumCheckProver;
 
 /// Originally taken from Arkworks.
 /// Can be seen [here](https://github.com/arkworks-rs/sumcheck/blob/master/src/gkr_round_sumcheck/test.rs)
@@ -18,11 +21,12 @@ pub fn random_gkr_round_gates<F: Field>(
     DenseMultilinearExtension<F>,
 ) {
     let rng = &mut test_rng();
+    let mle = DenseMultilinearExtension::rand(dim, rng);
     (
         SparseMultilinearExtension::rand_with_config(dim * 3, 1 << dim, rng),
         SparseMultilinearExtension::rand_with_config(dim * 3, 1 << dim, rng),
-        DenseMultilinearExtension::rand(dim, rng),
-        DenseMultilinearExtension::rand(dim, rng),
+        mle.clone(),
+        mle,
     )
 }
 
@@ -82,6 +86,14 @@ pub fn line<F: Field>(b: &[F], c: &[F]) -> Vec<univariate::SparsePolynomial<F>> 
 
 pub fn sparse_polynomial<F: Field>(evaluations: Vec<(usize, F)>) -> SparsePolynomial<F> {
     SparsePolynomial::from_coefficients_vec(evaluations)
+}
+
+/// Creates a prover and tracks the time it took to be created.
+pub fn create_prover<T: SumCheckProver<F>, F: Field>(next_gate: &mut Vec<F>, gkr_round: GKRRound<F>) -> (T, Duration) {
+    let time = Instant::now();
+    let prover = T::new(gkr_round.clone(), &*next_gate);
+    let elapsed = time.elapsed();
+    (prover, elapsed)
 }
 
 #[cfg(test)]

@@ -1,17 +1,21 @@
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use ark_bls12_381::{Fr, FrConfig};
-use ark_ff::{Field, Fp, MontBackend};
+use ark_ff::{Field, Fp, MontBackend, Zero};
+use ark_poly::univariate::SparsePolynomial;
 use ark_std::test_rng;
 use rust_xlsxwriter::{RowNum, Workbook};
 use crate::gkr::gkr_circuit::compute_predicates;
 use crate::gkr::gkr_driver::GKRDriver;
 use crate::gkr::gkr_prover::GKRProver;
+use crate::gkr::gkr_round::GKRRound;
 use crate::gkr::gkr_verifier::GKRVerifier;
 use crate::gkr::layer::InputLayer;
 use crate::provers::fast::FastProver;
 use crate::provers::naive::NaiveProver;
 use crate::structures::circuit_structures::GKRCircuit;
-use crate::structures::data_structures::{AnalysisResult, SumCheckProver, Track};
+use crate::structures::data_structures::{AnalysisResult, SumCheckProver, SumCheckVerifier, Track};
+use crate::util::{create_prover, random_gate, sparse_polynomial};
+use crate::verifiers::standard_verifier::StandardVerifier;
 
 mod util;
 pub mod provers;
@@ -20,6 +24,91 @@ pub mod verifiers;
 pub mod gkr;
 
 fn main() {
+    simulate_sum_check_instance::<FastProver<Fr>, Fr, StandardVerifier<Fr>>(4);
+}
+
+fn simulate_sum_check_instance<T: SumCheckProver<F>, F:Field, V: SumCheckVerifier<F>>(dim: usize) -> Track {
+    let r_gkr: GKRRound<F> = GKRRound::new_rand(dim);
+    let r_gate = random_gate(r_gkr.gate_labes());
+    let mut track = Track::new();
+
+    let (mut prv, time) = create_prover::<T, F>(&mut r_gate.clone(), r_gkr.clone());
+    track.add_prover_time(time);
+    let (claim, time) = prover_compute_claim::<T, F>(&mut prv);
+    track.add_prover_time(time);
+
+    let (mut vrf, time) = create_verifier::<F, V>(claim);
+    track.add_verifier_time(time);
+
+    for i in 0..r_gkr.vj.num_vars*2 {
+        let (vrf_fnc, time) = track_compute_vrf_func(&mut prv);
+        track.add_prover_time(time);
+
+        if i == r_gkr.vj.num_vars*2-1 {
+            let tmp = vrf_fnc.iter().rfold(F::zero(), |acc, (_, elem)| {*elem + acc});
+            assert_eq!(tmp, prv.compute_sum());
+            let ins = Instant::now();
+            //vrf.final_check(&*r_gate, r_gkr.clone().add_predicate(), r_gkr.clone().mult_predicate(), r_gkr.vi, vrf_func);
+            track.add_verifier_time(ins.elapsed());
+            break;
+        }
+
+        let (r_i, time) = handle_vrf_checks(&mut vrf, vrf_fnc.clone());
+        track.add_verifier_time(time);
+
+        let time = fix_variable_prv(r_i, &mut prv);
+        track.add_prover_time(time);
+
+        let (claim, time) = prover_compute_claim(&mut prv);
+        track.add_prover_time(time);
+
+        let time = set_new_claim(&mut vrf, claim);
+        track.add_verifier_time(time);
+
+    }
+    track
+}
+
+fn set_new_claim<F: Field, V: SumCheckVerifier<F>>(vrf: &mut V, claim: F) -> Duration {
+    let ins = Instant::now();
+    vrf.set_claim(claim);
+    ins.elapsed()
+}
+
+fn fix_variable_prv<T: SumCheckProver<F>, F: Field>(r_i: F, prv: &mut T) -> Duration {
+    let ins = Instant::now();
+    prv.fix_variable(r_i);
+    ins.elapsed()
+}
+
+fn handle_vrf_checks<F: Field, V: SumCheckVerifier<F>>(vrf: &mut V, evals: Vec<(usize, F)>) -> (F, Duration) {
+    let ins = Instant::now();
+    let polynomial = SparsePolynomial::from_coefficients_vec(evals);
+    let r_i = vrf.handle_round(&polynomial);
+    (r_i, ins.elapsed())
+}
+
+fn track_compute_vrf_func<T: SumCheckProver<F>, F: Field>(prv: &mut T) -> (Vec<(usize, F)>, Duration) {
+    let ins = Instant::now();
+    let vrf_func = prv.get_verifier_function();
+    (vrf_func, ins.elapsed())
+}
+
+fn create_verifier<F: Field, V: SumCheckVerifier<F>>(claim: F) -> (V, Duration) {
+    let ins = Instant::now();
+    // The degree is abitrary atm since i am unsure how to get the maximum degree for the random
+    // polynomials sent during Sum-check.
+    let vrf = V::new(2, claim);
+    (vrf, ins.elapsed())
+}
+
+fn prover_compute_claim<T: SumCheckProver<F>, F: Field>(prv: &mut T) -> (F, Duration) {
+    let inst = Instant::now();
+    let claim = prv.compute_sum();
+    (claim, inst.elapsed())
+}
+
+fn benchmark_gkr() {
     let (layers, random_circuit, input_layer) = random_circuit();
     let mut naive_res: Vec<AnalysisResult> = Vec::new();
     let mut fast_res: Vec<AnalysisResult> = Vec::new();
@@ -43,10 +132,10 @@ fn main() {
         println!("Average Time for layer {layer}. Prover {:?}, Verifier {:?}. Variables in layer: {:?}", time.prover(), time.verifier(), variables);
     }
 
-    save_results(avg_pr_layer_fast, avg_pr_layer_naive, layers);
+    save_results_for_each_layer_avg(avg_pr_layer_fast, avg_pr_layer_naive, layers);
 }
 
-pub fn save_results(fast: Vec<Track>, naive: Vec<Track>, layers: Vec<usize>) {
+pub fn save_results_for_each_layer_avg(fast: Vec<Track>, naive: Vec<Track>, layers: Vec<usize>) {
     let mut workbook = Workbook::new();
     let worksheet = workbook.add_worksheet();
     worksheet.write(0,0, "Variables/Layer").unwrap();
