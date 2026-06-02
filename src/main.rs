@@ -3,7 +3,7 @@ use ark_bls12_381::{Fr, FrConfig};
 use ark_ff::{Field, Fp, MontBackend, Zero};
 use ark_poly::univariate::SparsePolynomial;
 use ark_std::test_rng;
-use rust_xlsxwriter::{RowNum, Workbook};
+use rust_xlsxwriter::{ColNum, RowNum, Workbook};
 use crate::gkr::gkr_circuit::compute_predicates;
 use crate::gkr::gkr_driver::GKRDriver;
 use crate::gkr::gkr_prover::GKRProver;
@@ -24,7 +24,58 @@ pub mod verifiers;
 pub mod gkr;
 
 fn main() {
-    simulate_sum_check_instance::<FastProver<Fr>, Fr, StandardVerifier<Fr>>(4);
+    let mut trials: Vec<usize> = vec![1000; 5];
+    trials.append(&mut vec![300; 5]);
+    trials.append(&mut vec![30; 10]);
+    simulate_circuit_and_save_results(14, &*trials)
+}
+
+fn simulate_circuit_and_save_results(max_variables: usize, trials: &[usize]) {
+    let mut naive_res: Vec<Vec<Track>> = Vec::new();
+    let mut fast_res: Vec<Vec<Track>> = Vec::new();
+    for i in 0..max_variables {
+        let trial = trials[i];
+        let mut fast_trials = Vec::new();
+        let mut naive_trials = Vec::new();
+        for _ in 0..trial {
+            let naive_time = simulate_sum_check_instance::<NaiveProver<Fr>, Fr, StandardVerifier<Fr>>(i);
+            println!("Finished running naive for dimension {i}");
+            naive_trials.push(naive_time);
+            let fast_time = simulate_sum_check_instance::<FastProver<Fr>, Fr, StandardVerifier<Fr>>(i);
+            fast_trials.push (fast_time);
+            println!("Finished running fast for dimension {i}");
+        }
+        naive_res.push(naive_trials);
+        fast_res.push(fast_trials);
+    }
+    let mut workbook = Workbook::new();
+    let worksheet = workbook.add_worksheet();
+    // Create the headers.
+    for i in 0..max_variables {
+        worksheet.write(0, (i * 4) as ColNum, format!("Fast Prover, {i} variables")).unwrap();
+        worksheet.write(0, (i * 4 + 1) as ColNum, format!("Fast Verifier, {i} variables")).unwrap();
+        worksheet.write(0, (i * 4 + 2) as ColNum, format!("Naive Prover, {i} variables")).unwrap();
+        worksheet.write(0, (i * 4 + 3) as ColNum, format!("Naive Verifier, {i} variables")).unwrap();
+    }
+
+    for i in 0..naive_res.len() {
+        for j in 0..naive_res[i].len() {
+            let naive_prover_time = naive_res[i][j].prover().as_secs_f64();
+            let naive_verifier_time = naive_res[i][j].verifier().as_secs_f64();
+            let fast_prover_time = fast_res[i][j].prover().as_secs_f64();
+            let fast_verifier_time = fast_res[i][j].verifier().as_secs_f64();
+
+            let row = (1 + j) as RowNum;
+
+            worksheet.write(row, (i * 4) as ColNum, fast_prover_time).unwrap();
+            worksheet.write(row, (i * 4 + 1) as ColNum, fast_verifier_time).unwrap();
+            worksheet.write(row, (i * 4 + 2) as ColNum, naive_prover_time).unwrap();
+            worksheet.write(row, (i * 4 + 3) as ColNum, naive_verifier_time).unwrap();
+        }
+    }
+
+    workbook.save("sum-check.xlsx").unwrap();
+    println!("Saved data to excel sheet");
 }
 
 fn simulate_sum_check_instance<T: SumCheckProver<F>, F:Field, V: SumCheckVerifier<F>>(dim: usize) -> Track {
