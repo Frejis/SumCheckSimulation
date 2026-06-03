@@ -86,6 +86,7 @@ pub struct AnalysisResult {
     time_per_layer: Vec<Track>
 }
 
+#[derive(Clone)]
 pub struct Track {
     prover: Duration,
     verifier: Duration,
@@ -161,6 +162,15 @@ impl AnalysisResult {
 
     pub fn add_prover_time(&mut self, time: Duration, layer: usize) {
         self.time_per_layer[layer].add_prover_time(time);
+    }
+
+    pub fn get_total_time(&self) -> Track {
+        let mut track = Track::new();
+        for i in self.time_per_layer.iter() {
+            track.add_prover_time(i.prover);
+            track.add_verifier_time(i.verifier);
+        }
+        track
     }
 }
 
