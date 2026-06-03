@@ -1,3 +1,4 @@
+use std::fmt::format;
 use std::time::{Duration, Instant};
 use ark_bls12_381::{Fr, FrConfig};
 use ark_ff::{Field, Fp, MontBackend, Zero};
@@ -24,7 +25,11 @@ pub mod verifiers;
 pub mod gkr;
 
 fn main() {
-    let mut trials: Vec<usize> = vec![1000; 5];
+    benchmark_gkr();
+}
+
+fn run_sum_check_config() {
+    let mut trials: Vec<usize> = vec![0; 6];
     trials.append(&mut vec![300; 5]);
     trials.append(&mut vec![30; 10]);
     simulate_circuit_and_save_results(14, &*trials)
@@ -40,10 +45,13 @@ fn simulate_circuit_and_save_results(max_variables: usize, trials: &[usize]) {
         for _ in 0..trial {
             let naive_time = simulate_sum_check_instance::<NaiveProver<Fr>, Fr, StandardVerifier<Fr>>(i);
             println!("Finished running naive for dimension {i}");
+            println!("Time taken for naive prover: {:?}", naive_time.prover());
             naive_trials.push(naive_time);
+
             let fast_time = simulate_sum_check_instance::<FastProver<Fr>, Fr, StandardVerifier<Fr>>(i);
-            fast_trials.push (fast_time);
             println!("Finished running fast for dimension {i}");
+            println!("Time taken for fast prover: {:?}", fast_time.prover());
+            fast_trials.push (fast_time);
         }
         naive_res.push(naive_trials);
         fast_res.push(fast_trials);
@@ -163,7 +171,7 @@ fn benchmark_gkr() {
     let (layers, random_circuit, input_layer) = random_circuit();
     let mut naive_res: Vec<AnalysisResult> = Vec::new();
     let mut fast_res: Vec<AnalysisResult> = Vec::new();
-    let trials = 8;
+    let trials = 30;
     for _ in 0..trials {
         let naive = simulate_gkr_naive::<Fr>(random_circuit.clone(), input_layer.clone());
         let fast = simulate_gkr_fast::<Fr>(random_circuit.clone(), input_layer.clone());
@@ -171,48 +179,49 @@ fn benchmark_gkr() {
         fast_res.push(fast)
     }
 
-    let avg_pr_layer_naive = compute_avg_layers(layers.clone(), &mut naive_res, trials);
-    let avg_pr_layer_fast = compute_avg_layers(layers.clone(), &mut fast_res, trials);
-    println!("Naive prover:");
-    for (layer, time) in avg_pr_layer_naive.iter().enumerate() {
-        println!("Average Time for layer {layer}. Prover {:?}, Verifier {:?}", time.prover(), time.verifier());
+    let mut fast_time: Vec<Vec<Track>> = Vec::new();
+    let mut naive_time: Vec<Vec<Track>> = Vec::new();
+    for i in 0..layers.len() {
+        let mut fast_for_layer: Vec<Track> = Vec::new();
+        let mut naive_for_layer: Vec<Track> = Vec::new();
+        for j in 0..naive_res.len() {
+            fast_for_layer.push(fast_res[j].get_time_for_layer(i).clone());
+            naive_for_layer.push(naive_res[j].get_time_for_layer(i).clone());
+        }
+        fast_time.push(fast_for_layer);
+        naive_time.push(naive_for_layer);
     }
-    println!("Fast prover:");
-    for (layer, time) in avg_pr_layer_fast.iter().enumerate() {
-        let variables = layers[layer].ilog2();
-        println!("Average Time for layer {layer}. Prover {:?}, Verifier {:?}. Variables in layer: {:?}", time.prover(), time.verifier(), variables);
-    }
-
-    save_results_for_each_layer_avg(avg_pr_layer_fast, avg_pr_layer_naive, layers);
+    save_results_for_each_layer_avg(fast_time, naive_time, layers);
 }
 
-pub fn save_results_for_each_layer_avg(fast: Vec<Track>, naive: Vec<Track>, layers: Vec<usize>) {
+pub fn save_results_for_each_layer_avg(fast: Vec<Vec<Track>>, naive: Vec<Vec<Track>>, layers: Vec<usize>) {
     let mut workbook = Workbook::new();
     let worksheet = workbook.add_worksheet();
-    worksheet.write(0,0, "Variables/Layer").unwrap();
-    worksheet.write(0, 1, "Fast Prover").unwrap();
-    worksheet.write(0, 2, "Fast Verifier").unwrap();
-    worksheet.write(0, 3, "Naive Prover").unwrap();
-    worksheet.write(0, 4, "Naive Verifier").unwrap();
+    for i in 0..layers.len() {
+        worksheet.write(0,(i * 5) as ColNum, "Variables/Layer").unwrap();
+        worksheet.write(0, (i * 5 + 1) as ColNum, format!("Fast Prover layer {i}")).unwrap();
+        worksheet.write(0, (i * 5 + 2) as ColNum, format!("Fast Verifier layer {i}")).unwrap();
+        worksheet.write(0, (i * 5 + 3) as ColNum, format!("Naive Prover layer {i}")).unwrap();
+        worksheet.write(0, (i * 5 + 4) as ColNum, format!("Naive Verifier layer {i}")).unwrap();
+    }
 
-    for i in 0..fast.len() {
-        let row = i + 1;
-        worksheet.write(row as RowNum, 0, layers[i].ilog2()).unwrap();
-        worksheet.write(row as RowNum, 1, fast[i].prover().as_secs_f64()).unwrap();
-        worksheet.write(row as RowNum, 2, fast[i].verifier().as_secs_f64()).unwrap();
+    for i in 0..layers.len() {
+        worksheet.write((i + 1) as RowNum, 0, layers[i].ilog2()).unwrap();
+        for j in 0..fast[i].len() {
+            let row = j + 1;
+            worksheet.write(row as RowNum, (i * 5 + 1) as ColNum, fast[i][j].prover().as_secs_f64()).unwrap();
+            worksheet.write(row as RowNum, (i * 5 + 2) as ColNum, fast[i][j].verifier().as_secs_f64()).unwrap();
+            worksheet.write(row as RowNum, (i * 5 + 3) as ColNum, naive[i][j].prover().as_secs_f64()).unwrap();
+            worksheet.write(row as RowNum, (i * 5 + 4) as ColNum, naive[i][j].verifier().as_secs_f64()).unwrap();
+        }
     }
-    for i in 0..naive.len() {
-        let row = i + 1;
-        worksheet.write(row as RowNum, 3, naive[i].prover().as_secs_f64()).unwrap();
-        worksheet.write(row as RowNum, 4, naive[i].verifier().as_secs_f64()).unwrap();
-    }
-    workbook.save("test.xlsx").unwrap();
+    workbook.save("gkr_circuit.xlsx").unwrap();
     println!("Saved data to excel sheet");
 }
 
 fn random_circuit() -> (Vec<usize>, GKRCircuit<Fr>, InputLayer<Fr>) {
     //let layers = &vec![2, 4, 8, 32, 64, 128, 256, 512, 2048, 2048*2, 2048*8, 1024];
-    let layers = &vec![2048, 2048*2, 2048*8, 1024];
+    let layers = &vec![2048, 2048*2, 2048*8, 2048*8, 1024];
     let random_circuit: GKRCircuit<Fr> = GKRCircuit::random(layers, &mut test_rng());
     let input_layer: InputLayer<Fr> = InputLayer::random(layers.last().unwrap());
     (layers.clone(), random_circuit, input_layer)
